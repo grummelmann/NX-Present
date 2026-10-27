@@ -1,0 +1,23 @@
+# Build products and local tools
+artifacts/
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+*.pdb
+# User content, browser profiles and credentials never belong in this repo
+settings.json
+audio-restore.json
+Browser-Preview/
+Browser-Live/
+*.log
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.key
+*.lnk
+installer/dependencies/

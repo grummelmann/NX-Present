@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NX-Present/NX-Present.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NX-Present.Validation/NX-Present.Validation.csproj" />
+  </Folder>
+</Solution>

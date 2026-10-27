@@ -1,0 +1,7 @@
+<Project>
+ <PropertyGroup>
+  <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts\bin\$(MSBuildProjectName)\</BaseOutputPath>
+  <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+  <NuGetLockFilePath>$(MSBuildProjectDirectory)\packages.lock.json</NuGetLockFilePath>
+ </PropertyGroup>
+</Project>

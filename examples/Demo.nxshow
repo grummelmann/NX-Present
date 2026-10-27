@@ -1,0 +1,9 @@
+{
+  "Version": 1,
+  "Cues": [
+    { "Kind": 3, "Name": "Farbbalken", "Source": "bars" },
+    { "Kind": 3, "Name": "Raster und Ausrichtung", "Source": "grid" },
+    { "Kind": 5, "Name": "Uhr", "Source": "local" },
+    { "Kind": 4, "Name": "Bereit", "Source": "NX-Present\nBereit für die nächste Präsentation" }
+  ]
+}

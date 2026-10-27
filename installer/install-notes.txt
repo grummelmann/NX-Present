@@ -1,0 +1,11 @@
+﻿NX-Present zeigt vorbereitete Inhalte auf einem getrennten Beamer oder Bildschirm.
+
+Kostenlos für nichtkommerzielle Nutzung. Kommerzielle Nutzung und eigene Download-Mirrors sind ohne gesonderte Zustimmung nicht erlaubt. Maßgeblich ist die folgende Projektlizenz. Die Lizenzen der Fremdbibliotheken bleiben gültig.
+
+Dieses Setup installiert für das aktuelle Windows-Benutzerkonto. .NET und die Video-Engine werden mitgeliefert. Fehlt Microsoft Edge WebView2 für Webseiten, wird der offizielle Microsoft-Bootstrapper ausgeführt; dafür ist eine Internetverbindung nötig.
+
+Beim ersten Start muss der Ausgabe-Bildschirm ausdrücklich gewählt werden. Für die Projektion sind zwei Anzeigen im Windows-Modus Erweitern erforderlich. Eine gewählte Tonausgabe ändert das Windows-Standardgerät auch für andere Programme.
+
+Zum schnellen Ausstieg: Strg + Alt + F10. Diese Tastenkombination schließt die Ausgabe und gibt die Maus frei.
+
+Bei einer Deinstallation bleiben persönliche Einstellungen und Browserprofile im lokalen Benutzerprofil erhalten.

@@ -1,0 +1,27 @@
+name: Fehler melden
+description: Ein Problem mit NX-Present beschreiben
+title: "[Fehler] "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: NX-Present-Version
+      placeholder: "0.3.1"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows-Version und Anzeigen
+      placeholder: "Windows 11, zwei Anzeigen, Beamer 1920×1080 / 60 Hz"
+  - type: textarea
+    id: steps
+    attributes:
+      label: Schritte und beobachtetes Verhalten
+      description: "Bitte keine Zugangsdaten oder privaten Dateien einfügen."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
