@@ -4,6 +4,8 @@ Kostenlos für nichtkommerzielle Nutzung. Kommerzielle Nutzung und eigene Downlo
 
 Dieses Setup installiert für das aktuelle Windows-Benutzerkonto. .NET und die Video-Engine werden mitgeliefert. Fehlt Microsoft Edge WebView2 für Webseiten, wird der offizielle Microsoft-Bootstrapper ausgeführt; dafür ist eine Internetverbindung nötig.
 
+Updates: NX-Present sucht beim Start auf der offiziellen GitHub-Veröffentlichungsseite nach einer neueren Version und installiert sie, solange nichts live ist. Das lässt sich unter Setup ausschalten; dort startet "Nach Updates suchen" die Prüfung von Hand. Das Setup einer Veröffentlichung ist nicht signiert und wird gegen die dort veröffentlichte SHA-256-Prüfsumme geprüft.
+
 Beim ersten Start muss der Ausgabe-Bildschirm ausdrücklich gewählt werden. Für die Projektion sind zwei Anzeigen im Windows-Modus Erweitern erforderlich. Eine gewählte Tonausgabe ändert das Windows-Standardgerät auch für andere Programme.
 
 Zum schnellen Ausstieg: Strg + Alt + F10. Diese Tastenkombination schließt die Ausgabe und gibt die Maus frei.

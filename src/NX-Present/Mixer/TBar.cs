@@ -28,7 +28,8 @@ public sealed class TBar : FrameworkElement
         double left = Inset, right = w - Inset, x = left + Value * (right - left);
         var groove = new Rect(left, mid - 4, right - left, 8);
         dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x13)), new Pen(new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x4B)), 1), groove, 4, 4);
-        if (x > left) dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromRgb(0xF0, 0xA6, 0x3A)), null, new Rect(left + 1, mid - 3, x - left - 1, 6), 3, 3);
+        // A handle that moved less than a pixel has no filled part yet; a negative width would make WPF refuse the layout.
+        if (x - left > 1) dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromRgb(0xF0, 0xA6, 0x3A)), null, new Rect(left + 1, mid - 3, x - left - 1, 6), 3, 3);
         var tick = new Pen(new SolidColorBrush(Color.FromRgb(0x6A, 0x6A, 0x72)), 1);
         for (int i = 0; i <= 4; i++)
         {

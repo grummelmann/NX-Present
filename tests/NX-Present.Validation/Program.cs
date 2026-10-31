@@ -88,6 +88,7 @@ class Program
                 Check(currentProcess.PriorityClass == priority, "Presentation scheduling is restored after disposal");
             }
             RundownChecks.Run(Check, folder);
+            UpdateChecks.Run(Check, folder).GetAwaiter().GetResult();
             PresentationChecks.Run(Check, folder, args);
             if (args.Contains("--audio"))
             {

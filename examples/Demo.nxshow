@@ -1,9 +1,39 @@
 {
-  "Version": 1,
+  "Version": 3,
   "Cues": [
     { "Kind": 3, "Name": "Farbbalken", "Source": "bars" },
     { "Kind": 3, "Name": "Raster und Ausrichtung", "Source": "grid" },
     { "Kind": 5, "Name": "Uhr", "Source": "local" },
     { "Kind": 4, "Name": "Bereit", "Source": "NX-Present\nBereit für die nächste Präsentation" }
+  ],
+  "Rundown": [
+    {
+      "Id": "3b6f1c0e-6a0d-4a58-9d1f-0a1b2c3d4e01", "Number": "1", "Label": "Einlass", "Color": 4,
+      "Cue": { "Kind": 4, "Name": "Bereit", "Source": "NX-Present\nBereit für die nächste Präsentation" },
+      "Notes": "Steht, bis alle Platz genommen haben.", "Transition": 1, "DurationMilliseconds": 1000
+    },
+    {
+      "Id": "3b6f1c0e-6a0d-4a58-9d1f-0a1b2c3d4e02", "Number": "2", "Type": 5, "Label": "Moderation beginnt", "Color": 3,
+      "Notes": "Eine Notiz tut nichts. GO geht einfach weiter, sobald die Begrüßung vorbei ist.", "DurationMilliseconds": 0
+    },
+    {
+      "Id": "3b6f1c0e-6a0d-4a58-9d1f-0a1b2c3d4e03", "Number": "3", "Label": "Uhrzeit",
+      "Cue": { "Kind": 5, "Name": "Uhr", "Source": "local" },
+      "Notes": "Ab hier läuft es von allein: Auto-Follow startet nach 5 Sekunden den nächsten Cue.", "Transition": 3, "DurationMilliseconds": 1500, "Continue": 2, "PostWaitMilliseconds": 5000
+    },
+    {
+      "Id": "3b6f1c0e-6a0d-4a58-9d1f-0a1b2c3d4e04", "Number": "4", "Label": "Bild ausrichten",
+      "Cue": { "Kind": 3, "Name": "Raster und Ausrichtung", "Source": "grid" },
+      "Transition": 1, "DurationMilliseconds": 1000, "PreWaitMilliseconds": 500, "Continue": 2, "PostWaitMilliseconds": 3000
+    },
+    {
+      "Id": "3b6f1c0e-6a0d-4a58-9d1f-0a1b2c3d4e05", "Number": "5", "Label": "Farbbalken", "Hotkey": "F1", "Color": 1,
+      "Cue": { "Kind": 3, "Name": "Farbbalken", "Source": "bars" },
+      "Notes": "Mit F1 jederzeit direkt abrufbar.", "Transition": 1, "DurationMilliseconds": 800
+    },
+    {
+      "Id": "3b6f1c0e-6a0d-4a58-9d1f-0a1b2c3d4e06", "Number": "6", "Type": 1, "Action": 4, "Label": "Ende: weich nach Schwarz",
+      "Notes": "Blendet in zwei Sekunden nach Schwarz, auch der Ton.", "DurationMilliseconds": 2000
+    }
   ]
 }

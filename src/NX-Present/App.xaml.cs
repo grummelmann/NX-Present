@@ -13,13 +13,14 @@ namespace NXPresent;
 
 public partial class App : System.Windows.Application
 {
+    private const string InstanceName = "Local\\NX-Present-Controller";
     private Mutex? instance;
     public static LibVLC MediaEngine { get; private set; } = null!;
     public static string DataDirectory { get; internal set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NX-Present");
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        instance = new Mutex(true, "Local\\NX-Present-Controller", out bool created);
+        instance = new Mutex(true, InstanceName, out bool created);
         if (!created) { MessageBox.Show("NX-Present läuft bereits.", "NX-Present"); Shutdown(); return; }
         Directory.CreateDirectory(DataDirectory);
         Trace("Startup");
@@ -55,6 +56,19 @@ public partial class App : System.Windows.Application
             splash.Close();
         }
         catch (Exception ex) { Log(ex); MessageBox.Show("NX-Present konnte nicht starten:\n" + ex.Message); splash.Close(); Shutdown(1); }
+    }
+    /// <summary>The setup of an update checks this lock at start and would refuse to run while it is held.</summary>
+    internal void ReleaseInstanceLock()
+    {
+        instance?.Dispose();
+        instance = null;
+    }
+    /// <summary>Takes the lock back when the update setup could not be started, so that a second copy still cannot open.</summary>
+    internal void RestoreInstanceLock()
+    {
+        if (instance != null) return;
+        var restored = new Mutex(true, InstanceName, out bool created);
+        if (created) instance = restored; else restored.Dispose();
     }
     public static void Log(Exception ex)
     {

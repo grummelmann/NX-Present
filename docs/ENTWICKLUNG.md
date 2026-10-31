@@ -36,11 +36,13 @@ dotnet publish src/NX-Present/NX-Present.csproj -c Release -r win-x64 --self-con
 
 Die Standardvalidierung braucht weder Video-Engine noch Browser und umfasst:
 
-- URL- und Dateitypfilter, Showdateien, Einstellungen, Cue-Ablauf
+- URL- und Dateitypfilter, Showdateien, Einstellungen, Cue-Liste (Nummern, Tasten, Zeitangaben, Speichern, Kompatibilität älterer Shows)
+- die Cue-Engine mit künstlicher Uhr: GO und Marke, Pre-Wait, Auto-Continue und Auto-Follow, gleichzeitige Cues, Warteschlange hinter laufenden Übergängen, Stopp, ausgeschaltete Cues, fehlgeschlagene und langsam ladende Quellen, Schwarz-, Lautstärke- und Video-Cues, Vorladen
 - Testbilder (sichtbare Bewegung, feste Referenzlinien, Schutz-Schwarzbild) und Uhr
 - die Mischer-Logik mit künstlicher Uhr: Vorschau, CUT, AUTO, Überblender, Fade to Black, Tausch von Programm und Vorschau, Audio-Pegel, abgebrochene und fehlgeschlagene Quellen
 - den Compositor pixelgenau für jede Übergangsart (Mix, Dip, beide Wischer, Iris, Schieben) und für Schwarz
 - Standbilder mit EXIF-Ausrichtung und Größenbegrenzung
+- den Update-Dienst gegen einen Ersatz für GitHub ohne Netzwerk: Versionsnummern, vertrauenswürdige Adressen, `SHA256SUMS.txt`, Entscheidung aus der Release-Antwort (neuer, gleich, älter, Vorabversion, fehlende Dateien, fremde Adressen, Fehlerantworten), Download mit Prüfsumme, abgebrochene und beschädigte Downloads, Aufräumen, Einstellungen
 - das Hauptfenster in einem unsichtbaren Fenster außerhalb aller Monitore: Medienpool, Tasten-Reihen, CUT und AUTO in Echtzeit, T-Bar, gesperrte Programm-Zeile, FTB, Mindestgröße, Speichern der Einstellungen. Dabei entstehen Screenshots der Oberfläche im Ordner `runs/` neben dem Testprogramm.
 
 Mit `--media` (oder `Build.ps1 -Media`) kommen die Prüfungen mit der echten Video-Engine und der WebView2-Laufzeit hinzu: ein selbst erzeugtes Testvideo (Bildfarben, Cue, Wiedergabe, Pause, Suchen, Schleife, erneutes Bereitstellen, Freigabe, defekte Datei), eine lokale animierte Webseite (Bilder, Bewegung, Freigabe des Browserfensters, nicht erreichbare Adresse) und ein Mischer mit echten Quellen. `--video <Dateipfad>` ergänzt einen Test mit einer eigenen Videodatei. `--media-only` führt nur die Mischer- und Medienprüfungen aus.
@@ -58,12 +60,15 @@ Der zusätzliche Parameter `--audio` ist ein bewusster Integrationstest, der Win
 | `Mixer/MixerSurface` | Compositor: Programm, einlaufende Quelle, Übergang und Schwarz. Ausgabefenster und Monitore benutzen je einen |
 | `Mixer/MonitorView`, `TBar`, `BusKey` | Monitor mit Tally und Wiedergabeleiste, Überblender, Taste für Zeilen und Pool |
 | `MainWindow*` | Oberfläche des Mischers, Pool, Einstellungen, Cue-Anbindung und Fensterrahmen |
-| `CueModeView`, `CueRundown` | Geplanter Ablauf; GO lädt in die Vorschau und blendet über |
+| `CueRundown` | Die Cue-Liste als Daten: Cues mit Nummer, Zeiten, Art und Weiter-Modus, Marke (`Next`), Live-Cue, Nummern und Tasten. Kennt weder Oberfläche noch Mischer |
+| `CueEngine` | Fährt die Liste wie QLab: GO, Pre-Wait, Auto-Continue und Auto-Follow, mehrere Cues zugleich, Warteschlange der Übergänge, Stopp, Vorladen. Die Zeit kommt von außen |
+| `CueModeView`, `CueFormat` | Die Cue-Seite (Liste, Inspektor, Monitore) und ihre Helfer: Zeiten lesen und anzeigen, Farben, Tasten, Konverter |
 | `DisplaySafety` | Beamer-Fenster (`OutputWindow`), Mausschutz, Anzeigenliste |
 | `PatternView` / `ClockView` / `CueVisual` | Testsignale, Uhr, Texttafeln und deren Vorschaubilder |
 | `AudioRouting` | Gemeinsames Windows-Standardgerät und Wiederherstellung |
 | `SettingsStore` / `ShowFile` | Einstellungen und `.nxshow`-Dateien |
-| `installer/` | Benutzerbezogenes Windows-Setup mit WebView2-Erkennung |
+| `Updater`, `MainWindow.Update` | Suche, Download und Start des Update-Setups; Setup-Karte, Statusleiste und Prüfung beim Start |
+| `installer/` | Benutzerbezogenes Windows-Setup mit WebView2-Erkennung, stillem Update und Neustart der Anwendung |
 
 ### Der Signalweg
 
@@ -79,13 +84,27 @@ Jede Quelle ist ein `SourceFeed`. Alle Monitore und das Ausgabefenster bauen mit
 
 `WebFeed` startet ein `WebView2` in einem Fenster bei Position −12000, −12000. Chromium würde ein solches Fenster als verdeckt behandeln und das Zeichnen einstellen, deshalb setzt `WebHost` die Startparameter `--disable-features=CalculateNativeWinOcclusion`, `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding` und `--disable-background-timer-throttling`. Die Seite wird mit `Emulation.setDeviceMetricsOverride` auf 1920 × 1080 festgelegt, die Bilder liefert `Page.startScreencast` als JPEG. Bleibt der Screencast stumm, nimmt `CapturePreviewAsync` einzelne Bilder auf.
 
+### Updates
+
+`Updater` fragt `https://api.github.com/repos/grummelmann/NX-Present/releases/latest` ab (ohne Anmeldung, höchstens 60 Anfragen je Stunde und Adresse) und bietet eine Veröffentlichung nur an, wenn
+
+- sie weder Entwurf noch Vorabversion ist und ihr Tag `vX.Y.Z` (oder `X.Y.Z`) lautet, ohne Zusatz wie `-beta`,
+- die Version größer ist als die laufende (`Updater.CurrentVersion`, aus `<Version>` in der `.csproj`),
+- sie genau die Dateien `NX-Present-Setup-X.Y.Z-x64.exe` und `SHA256SUMS.txt` enthält und beide Adressen mit `https://github.com/grummelmann/NX-Present/releases/` beginnen.
+
+Der Download geht in `%LOCALAPPDATA%\NX-Present\Updates\<name>.part`, wird auf Größe und SHA-256 laut `SHA256SUMS.txt` geprüft und erst dann umbenannt. Die Prüfsumme stammt aus derselben Veröffentlichung; sie erkennt beschädigte Downloads, keine manipulierte Veröffentlichung. Ein Austausch gegen ein signiertes Setup (Authenticode-Prüfung vor dem Start) ist der nächste Schritt, sobald ein Zertifikat vorliegt.
+
+Zum Installieren gibt die Anwendung ihre Einzelinstanz-Sperre frei (`Local\NX-Present-Controller`, sonst bricht das Setup wegen `AppMutex` ab), startet das Setup mit `/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /relaunch=1 /waitpid=<Prozess-ID> /LOG="…\setup-X.Y.Z.log"` und beendet sich. Das Setup wartet in `InitializeSetup` bis zu 30 Sekunden auf die Prozess-ID, ersetzt die Dateien und startet NX-Present über den `[Run]`-Eintrag mit `Check: RelaunchRequested`. Scheitert der Start des Setups, wird die Sperre zurückgeholt. Eine Kopie ohne `unins000.exe` neben der EXE (Selbstbau) wird nie ersetzt. Vor dem Start wird `UpdateAttempt` in den Einstellungen gesetzt; ist die laufende Version danach noch älter, gilt der Versuch als fehlgeschlagen und wird nicht automatisch wiederholt.
+
+Die automatische Installation beim Start gilt nur, solange das Programm schwarz ist und kein Übergang läuft (`UpdateIsSafe`); sie wird direkt vor dem Start des Setups noch einmal geprüft.
+
 ## Veröffentlichen
 
-1. Version und Änderungsübersicht aktualisieren.
+1. Version (`<Version>` in `src/NX-Present/NX-Present.csproj`) und Änderungsübersicht aktualisieren.
 2. Projekt bauen, Validierung mit `-Media` ausführen und Setup erzeugen.
-3. Installation, Start, Ausgabe mit echtem Beamer, CUT, AUTO, Video und Webseite, Schwarzbild, Notausstieg und Deinstallation prüfen.
+3. Installation, Start, Ausgabe mit echtem Beamer, CUT, AUTO, Video und Webseite, Schwarzbild, Notausstieg, Update von der vorherigen Version (Setup-Karte und Start-Prüfung) und Deinstallation prüfen.
 4. Fremdlizenzen und zugehörige Quellpakete prüfen und beilegen.
-5. Ausschließlich im offiziellen Repository veröffentlichen: Installer, `SHA256SUMS.txt` und Fremdquellen.
+5. Ausschließlich im offiziellen Repository veröffentlichen, als Veröffentlichung mit dem Tag `vX.Y.Z`, ohne Haken bei „Vorabversion“: `NX-Present-Setup-X.Y.Z-x64.exe`, `SHA256SUMS.txt` (beide aus `artifacts/release`, die Namen dürfen nicht geändert werden) und Fremdquellen. Fehlt eine der beiden ersten Dateien, bieten Anwendungen die Version nicht als Update an.
 
 Der Installer wird hier ohne eigenes Code-Signing-Zertifikat gebaut. Für eine später signierte Veröffentlichung muss der Herausgeber selbst ein passendes Zertifikat bzw. einen Signierdienst bereitstellen; Schlüssel gehören nicht in das Repository.
 

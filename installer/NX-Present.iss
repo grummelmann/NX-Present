@@ -33,6 +33,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19045
 AppMutex=Local\NX-Present-Controller
+SetupMutex=NX-Present-Setup
 OutputDir={#ReleaseDir}
 OutputBaseFilename=NX-Present-Setup-{#AppVersion}-x64
 SetupIconFile=..\src\NX-Present\Assets\nx-present.ico
@@ -43,7 +44,6 @@ Compression=lzma2
 SolidCompression=yes
 LZMANumBlockThreads=2
 WizardStyle=modern dark includetitlebar
-WizardResizable=yes
 WizardSizePercent=110
 CloseApplications=yes
 RestartApplications=no
@@ -56,6 +56,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Desktop-Verknüpfung erstellen"; GroupDescription: "Verknüpfungen:"
+
+[InstallDelete]
+; The video engine's plugin catalog only matches the plugin files of its own version. Files that a newer version no longer ships must not stay behind.
+Type: filesandordirs; Name: "{app}\libvlc"
 
 [Files]
 Source: "{#AppDir}\*"; DestDir: "{app}"; Excludes: "*.pdb,*.lib"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -73,8 +77,47 @@ Name: "{autodesktop}\NX-Present"; Filename: "{app}\NX-Present.exe"; WorkingDir: 
 
 [Run]
 Filename: "{app}\NX-Present.exe"; Description: "NX-Present starten"; Flags: nowait postinstall skipifsilent
+; An update started by NX-Present itself runs silently and passes /relaunch=1: the new version opens right after the installation.
+Filename: "{app}\NX-Present.exe"; WorkingDir: "{app}"; Flags: nowait; Check: RelaunchRequested
 
 [Code]
+function OpenProcess(Access: Cardinal; Inherit: Boolean; ProcessId: Cardinal): THandle;
+  external 'OpenProcess@kernel32.dll stdcall';
+function WaitForSingleObject(Handle: THandle; Milliseconds: Cardinal): Cardinal;
+  external 'WaitForSingleObject@kernel32.dll stdcall';
+function CloseHandle(Handle: THandle): Boolean;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+function RelaunchRequested: Boolean;
+begin
+  Result := ExpandConstant('{param:relaunch|0}') = '1';
+end;
+
+{ An update starts this setup from the running program and passes its process id (/waitpid=...).
+  The files of the old version can only be replaced once that process has ended. }
+procedure WaitForRunningProgram;
+var
+  ProcessId: Integer;
+  Handle: THandle;
+begin
+  ProcessId := StrToIntDef(ExpandConstant('{param:waitpid|0}'), 0);
+  if ProcessId <= 0 then exit;
+  Handle := OpenProcess($00100000, False, ProcessId);
+  if Handle = 0 then begin
+    Log('Process ' + IntToStr(ProcessId) + ' has already ended.');
+    exit;
+  end;
+  Log('Waiting for process ' + IntToStr(ProcessId) + ' to end.');
+  WaitForSingleObject(Handle, 30000);
+  CloseHandle(Handle);
+end;
+
+function InitializeSetup: Boolean;
+begin
+  WaitForRunningProgram;
+  Result := True;
+end;
+
 function ValidRuntimeVersion(const Root: Integer): Boolean;
 var Version: String;
 begin

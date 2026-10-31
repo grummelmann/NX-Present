@@ -58,6 +58,7 @@ public partial class MainWindow : Window
         InitializeInterface();
         InitializeCueMode();
         WireSettings();
+        InitializeUpdates();
         switcher.Changed += OnSwitcherChanged;
         switcher.Message += Status;
         switcher.Taken += OnTaken;
@@ -83,6 +84,7 @@ public partial class MainWindow : Window
                 Status("Willkommen bei NX-Present. Wähle zuerst den Ausgabe-Bildschirm und prüfe die Tonausgabe.");
             }
             SaveSettings();
+            _ = StartupUpdateAsync();
         };
     }
 
@@ -240,7 +242,6 @@ public partial class MainWindow : Window
         TransitionBar.EndDrag();
         TransitionBar.Value = 0;
         Status("Programm: " + (incoming.Cue == Cue.Black ? "Schwarz" : incoming.Cue.Name));
-        CompleteRundownStep(incoming);
     }
 
     private void CutClicked(object sender, RoutedEventArgs e) => switcher.Cut();
@@ -322,7 +323,7 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             if (e.IsRepeat) return;
-            if (CueModePage.Visibility == Visibility.Visible) _ = RunNextCue(); else switcher.Auto();
+            if (CueModePage.Visibility == Visibility.Visible) CueModePage.Go(); else switcher.Auto();
             return;
         }
         if (e.Key == Key.B && control)
@@ -331,16 +332,26 @@ public partial class MainWindow : Window
             if (!e.IsRepeat) { BlackMuteButton.IsChecked = BlackMuteButton.IsChecked != true; switcher.SetBlackMute(BlackMuteButton.IsChecked == true); }
             return;
         }
-        if (Keyboard.Modifiers != ModifierKeys.None || e.IsRepeat || Keyboard.FocusedElement is TextBox or ComboBox || SettingsPage.Visibility == Visibility.Visible || HelpPage.Visibility == Visibility.Visible) return;
         bool cues = CueModePage.Visibility == Visibility.Visible;
+        // Esc stops the cue list from anywhere on its page, even from a text box, unless it closes an open list.
+        if (e.Key == Key.Escape && cues && Keyboard.Modifiers == ModifierKeys.None && Keyboard.FocusedElement is not ComboBox { IsDropDownOpen: true })
+        {
+            e.Handled = true;
+            if (!e.IsRepeat) CueModePage.Stop();
+            return;
+        }
+        if (Keyboard.Modifiers != ModifierKeys.None || e.IsRepeat || Keyboard.FocusedElement is TextBox or ComboBox || SettingsPage.Visibility == Visibility.Visible || HelpPage.Visibility == Visibility.Visible) return;
         switch (e.Key)
         {
-            case Key.Space: e.Handled = true; if (cues) _ = RunNextCue(); else switcher.Auto(); break;
+            case Key.Space: e.Handled = true; if (cues) CueModePage.Go(); else switcher.Auto(); break;
             case Key.Enter when !cues: e.Handled = true; switcher.Cut(); break;
             case Key.F when !cues: e.Handled = true; switcher.ToggleFtb(); break;
             case Key.M: e.Handled = true; MuteToggle.IsChecked = MuteToggle.IsChecked != true; break;
+            case Key.Up when cues: e.Handled = true; CueModePage.MovePlayhead(-1); break;
+            case Key.Down when cues: e.Handled = true; CueModePage.MovePlayhead(1); break;
             default:
-                if (!cues && KeyToDigit(e.Key) is int digit)
+                if (cues) { if (CueModePage.TryHotkey(e.Key)) e.Handled = true; }
+                else if (KeyToDigit(e.Key) is int digit)
                 {
                     e.Handled = true;
                     var key = digit == 0 ? blackKey : poolKeys.FirstOrDefault(k => k.Number == digit);
@@ -375,6 +386,8 @@ public partial class MainWindow : Window
         settingsTimer.Stop();
         CloseOutput();
         closing = true;
+        try { updateWork?.Cancel(); } catch (ObjectDisposedException) { }
+        updater?.Dispose();
         timer.Stop();
         CompositionTarget.Rendering -= OnRendering;
         SystemEvents.DisplaySettingsChanged -= DisplaysChanged;

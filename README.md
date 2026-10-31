@@ -71,7 +71,7 @@ Der Pool zeigt Vorschaubilder und bietet Suche und Filter. Dateien lassen sich h
 
 ### Geplante Abläufe
 
-Der **Cue Mode** ist für Veranstaltungen mit fester Reihenfolge. Ein Ablauf besteht aus Cues mit Bezeichnung, Regienotiz, Übergang und Dauer; dieselbe Quelle darf mehrfach vorkommen. **GO** lädt den markierten Cue in die Vorschau und blendet mit seinem Übergang über. Pool und Ablauf lassen sich als `.nxshow`-Datei sichern.
+Der **Cue Mode** ist für Veranstaltungen mit fester Reihenfolge und eine Cue-Liste nach dem Vorbild von QLab. Die **Marke** steht auf dem nächsten Cue; **GO** startet ihn und setzt die Marke sofort weiter. Jeder Cue hat eine Nummer, **Pre-Wait**, **Dauer** und **Post-Wait** und kann mit **Auto-Continue** oder **Auto-Follow** den nächsten Cue selbst starten, sodass eine ganze Kette mit einem GO läuft. Neben Quellen gibt es Cues für Schwarzblende, Lautstärkeblende, Video-Steuerung, Pausen und Notizen. Cues lassen sich ausschalten, färben und mit einer Taste direkt abrufen; **Esc** stoppt alles Wartende. Pool und Cue-Liste lassen sich als `.nxshow`-Datei sichern.
 
 ### Ausgabe
 
@@ -80,6 +80,10 @@ Der **Cue Mode** ist für Veranstaltungen mit fester Reihenfolge. Ein Ablauf bes
 - **Gemeinsames Audiogerät:** Ein Gerät für Videodateien und Webseiten. Die vorherige Windows-Auswahl wird beim normalen Beenden wiederhergestellt.
 - **Ohne Beamer nutzbar:** Der Mischer läuft vollständig ohne Ausgabefenster. Der Programm-Monitor zeigt, was auf der Leinwand stünde, so lässt sich ein Ablauf an einem Monitor proben.
 - **Gespeichert wird automatisch:** Pool, Ablauf, Übergang, Dauer, Lautstärke, Geräte und Fenstergröße.
+
+### Updates
+
+NX-Present sucht beim Start im Hintergrund auf der offiziellen GitHub-Veröffentlichungsseite nach einer neueren Version und installiert sie selbst, solange nichts live ist. Läuft schon Inhalt, wartet das Update: Die Statusleiste zeigt **UPDATE x.y.z**, und du startest es unter **Setup → Updates** mit **Jetzt aktualisieren**. Dort lässt sich die Suche beim Start und die automatische Installation auch ausschalten, und **Nach Updates suchen** prüft von Hand. Einstellungen, Pool und Cue-Liste bleiben beim Update erhalten.
 
 ## Installieren
 
@@ -90,9 +94,11 @@ Der **Cue Mode** ist für Veranstaltungen mit fester Reihenfolge. Ein Ablauf bes
 
 Das Setup installiert für dein Windows-Benutzerkonto. Eine eigene Installation von .NET oder VLC ist nicht nötig, die Laufzeitdateien liegen bei. Für Webseiten braucht NX-Present Microsoft Edge WebView2; fehlt diese Laufzeit, installiert das Setup den offiziellen Microsoft-Bootstrapper, wofür eine Internetverbindung nötig ist.
 
+**Aktualisieren:** Eine installierte Fassung ab 0.4.0 aktualisiert sich selbst (siehe [Updates](#updates)). Ältere Fassungen wie 0.3.1 kennen die Funktion nicht; installiere für den Wechsel einmal das neue Setup von Hand, es ersetzt die alte Version und behält deine Einstellungen. Eine selbst gebaute Kopie wird von der Update-Funktion nie überschrieben, sie meldet nur, dass es eine neue Version gibt.
+
 **System:** Windows 11, 64 Bit, Intel/AMD. Windows 10 ab 22H2 lässt der Installer zu, es wurde aber nicht gesondert geprüft. Für die Beamer-Ausgabe brauchst du zwei getrennte Anzeigen im Windows-Modus **Erweitern**. ARM64, macOS und Linux werden nicht angeboten.
 
-**Signatur:** Die Veröffentlichungen sind **nicht mit einem eigenen Code-Signing-Zertifikat signiert**. Windows kann deshalb einen unbekannten Herausgeber anzeigen. Auf PCs mit aktivierter **Smart App Control** oder strengen Richtlinien kann der Start unsignierter Programme blockiert werden, auch bei selbst gebauten. NX-Present fordert dich nicht auf, Windows-Schutzfunktionen abzuschalten. Die SHA-256-Prüfsumme im Release hilft, die heruntergeladene Datei mit der veröffentlichten zu vergleichen; sie ersetzt keine Signatur.
+**Signatur:** Die Veröffentlichungen sind **nicht mit einem eigenen Code-Signing-Zertifikat signiert**. Windows kann deshalb einen unbekannten Herausgeber anzeigen. Auf PCs mit aktivierter **Smart App Control** oder strengen Richtlinien kann der Start unsignierter Programme blockiert werden, auch bei selbst gebauten. NX-Present fordert dich nicht auf, Windows-Schutzfunktionen abzuschalten. Die SHA-256-Prüfsumme im Release hilft, die heruntergeladene Datei mit der veröffentlichten zu vergleichen; sie ersetzt keine Signatur. Die Update-Funktion prüft jedes geladene Setup genauso gegen die `SHA256SUMS.txt` derselben Veröffentlichung und lädt nur von `github.com/grummelmann/NX-Present/releases`. Das erkennt beschädigte oder unvollständige Downloads, aber keine manipulierte Veröffentlichung. Blockiert Windows ein Update-Setup, meldet NX-Present das und lässt die Datei im Ordner `%LOCALAPPDATA%\NX-Present\Updates` liegen.
 
 ## In einer Minute startklar
 
@@ -112,6 +118,8 @@ Zum Ausprobieren ohne eigene Medien liegt `examples/Demo.nxshow` bei, mit Testbi
 | **1 bis 9**, **0** | Quelle bzw. Schwarz in die Vorschau |
 | **F** | Fade to Black ein / aus |
 | **Strg + B** | Sofort schwarz und stumm |
+| **Esc** | Cue-Seite: alle wartenden und laufenden Cues stoppen |
+| **↑ ↓** | Cue-Seite: Marke bewegen |
 | **M** | Ton stumm |
 | **Strg + Alt + F10** | Global: Ausgabe schließen und Maus freigeben |
 

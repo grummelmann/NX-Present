@@ -30,7 +30,7 @@ public sealed class RunCue : INotifyPropertyChanged
 {
     private static readonly string[] Derived =
     [
-        nameof(DisplayName), nameof(Subtitle), nameof(PreText), nameof(DurationText), nameof(PostText), nameof(ContinueGlyph), nameof(ContinueLabel), nameof(ContinueHint),
+        nameof(DisplayName), nameof(DefaultName), nameof(Subtitle), nameof(PreText), nameof(DurationText), nameof(PostText), nameof(ContinueGlyph), nameof(ContinueLabel), nameof(ContinueHint),
         nameof(UsesDuration), nameof(MinDuration), nameof(MaxDuration), nameof(ColorBrush), nameof(Glyph), nameof(StatusGlyph), nameof(StatusBrush), nameof(Tip), nameof(Problem)
     ];
     private string label, notes, number, hotkey;

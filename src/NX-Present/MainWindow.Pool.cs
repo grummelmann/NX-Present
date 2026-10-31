@@ -176,7 +176,7 @@ public partial class MainWindow
     }
     private void OpenShow(object sender, RoutedEventArgs e)
     {
-        if (rundownBusy || switcher.IsTransitioning) { Status("Bitte den laufenden Übergang abwarten."); return; }
+        if (RundownBusy) { Status("Bitte warten, bis der Ablauf fertig ist, oder ihn mit Esc stoppen."); return; }
         var dialog = new OpenFileDialog { Title = "NX-Present Show öffnen", Filter = "NX-Present Show|*.nxshow" };
         if (dialog.ShowDialog(this) != true) return;
         try
@@ -190,7 +190,7 @@ public partial class MainWindow
             CueModePage.Rundown.Restore(document.Rundown ?? []);
             loadingShow = false;
             showPath = dialog.FileName; dirty = false;
-            int missing = list.Concat((document.Rundown ?? []).Select(x => x.Cue)).Distinct().Count(x => x.Kind is CueKind.Image or CueKind.Video && !File.Exists(x.Source));
+            int missing = list.Concat((document.Rundown ?? []).Select(x => x.Cue).OfType<Cue>()).Distinct().Count(x => x.Kind is CueKind.Image or CueKind.Video && !File.Exists(x.Source));
             Status("Show geöffnet." + (missing > 0 ? " Achtung: " + missing + " Mediendatei(en) fehlen." : ""));
         }
         catch (Exception ex) { loadingShow = false; App.Log(ex); Status("Show konnte nicht geöffnet werden: " + ex.Message); }

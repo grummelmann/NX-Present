@@ -32,6 +32,7 @@ static class MixerChecks
     public static async Task Run(Action<bool, string> check, string folder, string[] args)
     {
         TransitionMath(check);
+        TBarDrawing(check);
         Orientation(check);
         await SwitcherLogic(check);
         await RaceAndFailure(check);
@@ -46,6 +47,23 @@ static class MixerChecks
         check(Transitions.Normalize(TransitionKind.Cut) == TransitionKind.Dissolve && Transitions.Normalize((TransitionKind)99) == TransitionKind.Dissolve && Transitions.Normalize(TransitionKind.Iris) == TransitionKind.Iris, "A cut is never stored as a transition style");
         check(Transitions.Styles.All(x => Transitions.Label(x).Length > 0 && Transitions.ShortLabel(x) != "?"), "Every transition style has a label");
         check((int)TransitionKind.ThroughBlack == 2 && (int)TransitionKind.WipeHorizontal == 3, "Stored transition numbers stay compatible with older shows");
+    }
+
+    /// <summary>
+    /// Every AUTO starts at a position a hair above zero, and the first picture of the T-bar is drawn from it. A handle that has moved
+    /// less than a pixel once made the filled part of the groove negative, and WPF refused to lay out the window ("Breite und Höhe dürfen nicht negativ sein").
+    /// </summary>
+    static void TBarDrawing(Action<bool, string> check)
+    {
+        foreach (double value in new[] { 0, 0.00001, 0.0005, 0.002, 0.0035, 0.5, 0.999, 1 })
+            foreach (double width in new[] { 40d, 70d, 173d, 320d })
+            {
+                var bar = new TBar { Value = value };
+                bar.Measure(new Size(width, 46));
+                bar.Arrange(new Rect(0, 0, width, 46));
+                bar.UpdateLayout();
+            }
+        check(true, "The T-bar draws every handle position at every width, including a barely moved one");
     }
 
     static void Orientation(Action<bool, string> check)

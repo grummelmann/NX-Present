@@ -70,7 +70,7 @@ public partial class MainWindow
                 FtbButton.IsChecked = switcher.FtbActive;
                 BlackMuteButton.IsChecked = switcher.BlackMute;
             }
-            if ((change & (SwitcherChange.Feeds | SwitcherChange.Transition)) != 0) RefreshCueModeState();
+            if ((change & SwitcherChange.Settings) != 0) RefreshCueModeState();
         }
         finally { syncingControls = false; }
     }
@@ -92,7 +92,8 @@ public partial class MainWindow
         bool running = switcher.IsTransitioning;
         bool movable = !switcher.IsAutoRunning && (ready || running);
         CutButton.IsEnabled = ready || running;
-        AutoButton.IsEnabled = movable;
+        // While AUTO runs the key stays lit and fully visible; pressing it again does nothing.
+        AutoButton.IsEnabled = ready || running;
         TransitionBar.IsEnabled = movable;
         bool auto = switcher.IsAutoRunning;
         AutoButton.Background = auto ? programBrush : raisedBrush;
@@ -126,6 +127,7 @@ public partial class MainWindow
         StopOutputButton.IsEnabled = active;
         DisplayPicker.IsEnabled = !active;
         ProgramMonitor.OutputActive = active;
+        RefreshCueModeState();
     }
 
     private void NavigationChanged(object sender, RoutedEventArgs e)
@@ -139,7 +141,6 @@ public partial class MainWindow
         PageTitle.Text = page switch { "cues" => "Cue-Ablauf", "settings" => "Setup", "help" => "Hilfe", _ => "Mischer" };
         if (!interfaceReady) return;
         RefreshCueModeState();
-        if (page == "cues" && settingsReady && !rundownBusy) _ = PrepareRunCue();
     }
     private void OpenSettingsPage(object sender, RoutedEventArgs e) => SettingsNav.IsChecked = true;
     private void ShowHelp(object sender, RoutedEventArgs e) => HelpNav.IsChecked = true;

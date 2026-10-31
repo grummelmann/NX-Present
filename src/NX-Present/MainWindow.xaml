@@ -207,6 +207,22 @@
       <TextBlock Text="ÜBERGÄNGE" Style="{StaticResource Eyebrow}" Foreground="{StaticResource Accent}"/><TextBlock Text="Schwarzblende" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,18"/>
       <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Dauer von FTB" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/><ComboBox x:Name="FtbPicker" Grid.Column="1" Width="120" SelectionChanged="FtbDurationChanged"><ComboBoxItem Content="Sofort" Tag="0"/><ComboBoxItem Content="0,5 s" Tag="500"/><ComboBoxItem Content="1 s" Tag="1000"/><ComboBoxItem Content="2 s" Tag="2000"/><ComboBoxItem Content="3 s" Tag="3000"/></ComboBox></Grid>
      </StackPanel></Border>
+     <Border Style="{StaticResource PanelBorder}" Padding="22" Margin="0,0,0,12"><StackPanel>
+      <TextBlock Text="UPDATES" Style="{StaticResource Eyebrow}" Foreground="{StaticResource Accent}"/><TextBlock Text="Programmversion" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,18"/>
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="Installierte Version" VerticalAlignment="Center" Foreground="{StaticResource Muted}"/><TextBlock x:Name="UpdateVersionText" Grid.Column="1" FontFamily="Consolas" FontSize="14" VerticalAlignment="Center"/></Grid>
+      <StackPanel Margin="180,12,0,0">
+       <TextBlock x:Name="UpdateStatusText" Text="Noch nicht nach Updates gesucht." Style="{StaticResource Hint}"/>
+       <ProgressBar x:Name="UpdateProgress" Height="4" Minimum="0" Maximum="100" Margin="0,10,0,0" Visibility="Collapsed" BorderThickness="0" Background="{StaticResource Line}" Foreground="{StaticResource Accent}"/>
+       <WrapPanel Margin="0,12,0,0">
+        <Button x:Name="CheckUpdateButton" Content="Nach Updates suchen" Click="CheckUpdateClicked" Margin="0,0,8,8"/>
+        <Button x:Name="InstallUpdateButton" Content="Jetzt aktualisieren" Click="InstallUpdateClicked" Style="{StaticResource PrimaryButton}" Margin="0,0,8,8" Visibility="Collapsed"/>
+        <Button x:Name="UpdateNotesButton" Content="Versionshinweise" Click="UpdateNotesClicked" Margin="0,0,8,8" Visibility="Collapsed"/>
+       </WrapPanel>
+       <CheckBox x:Name="CheckUpdatesAtStart" Content="Beim Start nach Updates suchen" IsChecked="True" Margin="0,4,0,0"/>
+       <CheckBox x:Name="AutoInstallUpdates" Content="Gefundene Updates beim Start automatisch installieren, solange nichts live ist" IsChecked="True"/>
+       <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0" Text="Quelle ist ausschließlich die offizielle GitHub-Veröffentlichungsseite von NX-Present. Das Setup wird gegen die dort veröffentlichte SHA-256-Prüfsumme geprüft, ist aber nicht signiert. Zum Aktualisieren wird NX-Present beendet und danach neu gestartet. Eine selbst gebaute Kopie wird nicht überschrieben."/>
+      </StackPanel>
+     </StackPanel></Border>
      <Border Style="{StaticResource PanelBorder}" Padding="22"><StackPanel>
       <TextBlock Text="SHOW UND PROGRAMM" Style="{StaticResource Eyebrow}" Foreground="{StaticResource Accent}"/><TextBlock Text="Sitzung und Dateien" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,14"/>
       <TextBlock Text="Einstellungen und Medienpool werden automatisch gespeichert. Eine Showdatei sichert Pool und Cue-Ablauf zusätzlich separat." Style="{StaticResource Hint}" Margin="0,0,0,14"/>
@@ -240,7 +256,7 @@
      <Border Style="{StaticResource PanelBorder}" Padding="24" Margin="0,0,0,12"><StackPanel>
       <TextBlock Text="QUELLEN" Style="{StaticResource Eyebrow}" Foreground="{StaticResource Accent}"/>
       <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0" Text="Bilder, Videos, Webseiten, Texte, die Uhr und animierte Testbilder liegen im Medienpool. Dateien kannst du direkt hineinziehen. Videos werden bis Full HD in Echtzeit in den Mischer geholt; größere Videos werden verkleinert. Webseiten laufen in einem unsichtbaren Browser und erscheinen wie jede andere Quelle auf beiden Monitoren; sie können in dieser Fassung nicht bedient werden. Downloads, Kamera und Mikrofon sind gesperrt."/>
-      <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0" Text="Die Cue-Seite spielt einen geplanten Ablauf: GO lädt den nächsten Cue in die Vorschau und blendet mit dem für diesen Cue gewählten Übergang über."/>
+      <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0" Text="Die Cue-Seite spielt einen geplanten Ablauf wie eine Cue-Liste in QLab. Die Marke steht auf dem nächsten Cue; GO (Leertaste) startet ihn und setzt die Marke sofort weiter. Jeder Cue hat Pre-Wait, Dauer und Post-Wait und kann mit Auto-Continue oder Auto-Follow den nächsten Cue selbst starten. Esc stoppt alle wartenden Cues, Pfeil hoch und runter bewegen die Marke, und jedem Cue lässt sich eine Taste geben, die ihn sofort startet."/>
      </StackPanel></Border>
      <Button Content="Zurück zum Mischer" Click="BackToMixer" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Padding="20,9"/>
     </StackPanel>
@@ -248,10 +264,11 @@
   </Grid>
 
   <!-- Status bar -->
-  <Border Grid.Row="2" Background="{StaticResource Chrome}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0"><Grid Margin="14,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+  <Border Grid.Row="2" Background="{StaticResource Chrome}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0"><Grid Margin="14,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
    <TextBlock x:Name="StatusText" Text="Bereit." Foreground="{StaticResource Muted}" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-   <TextBlock x:Name="RenderRate" Grid.Column="1" Text="" Style="{StaticResource Mono}" FontSize="10" Margin="20,0,0,0" VerticalAlignment="Center"/>
-   <TextBlock Grid.Column="2" Text="STRG + ALT + F10 · NOTAUSSTIEG" Style="{StaticResource Mono}" FontSize="10" Margin="24,0,0,0" VerticalAlignment="Center"/>
+   <Button x:Name="UpdateBadge" Grid.Column="1" Visibility="Collapsed" Click="UpdateBadgeClicked" Style="{StaticResource QuietButton}" Foreground="{StaticResource Accent}" FontFamily="Consolas" FontSize="10" MinHeight="0" Padding="10,0" Margin="16,0,0,0" Focusable="False" VerticalAlignment="Stretch"/>
+   <TextBlock x:Name="RenderRate" Grid.Column="2" Text="" Style="{StaticResource Mono}" FontSize="10" Margin="20,0,0,0" VerticalAlignment="Center"/>
+   <TextBlock Grid.Column="3" Text="STRG + ALT + F10 · NOTAUSSTIEG" Style="{StaticResource Mono}" FontSize="10" Margin="24,0,0,0" VerticalAlignment="Center"/>
   </Grid></Border>
 
   <!-- Page bar -->

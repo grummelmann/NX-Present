@@ -35,6 +35,8 @@ public partial class MainWindow
         FitPicker.SelectedIndex = savedSettings.ImageFit;
         fit = savedSettings.ImageFit switch { 1 => System.Windows.Media.Stretch.UniformToFill, 2 => System.Windows.Media.Stretch.Fill, _ => System.Windows.Media.Stretch.Uniform };
         AutoStartOutput.IsChecked = savedSettings.AutoStartOutput;
+        CheckUpdatesAtStart.IsChecked = savedSettings.CheckUpdatesAtStart;
+        AutoInstallUpdates.IsChecked = savedSettings.AutoInstallUpdates;
         ProgramLock.IsChecked = !savedSettings.ProgramBusUnlocked;
         ProgramLock.Content = savedSettings.ProgramBusUnlocked ? "" : "";
         FtbPicker.SelectedItem = FtbPicker.Items.Cast<ComboBoxItem>().FirstOrDefault(x => (string)x.Tag == savedSettings.FtbMilliseconds.ToString(CultureInfo.InvariantCulture)) ?? FtbPicker.Items[2];
@@ -75,7 +77,7 @@ public partial class MainWindow
         settingsTimer.Tick += (_, _) => { settingsTimer.Stop(); SaveSettings(); };
         foreach (var picker in new[] { DisplayPicker, AudioPicker, FitPicker, FtbPicker }) picker.SelectionChanged += (_, _) => QueueSettingsSave();
         DisplayPicker.SelectionChanged += (_, _) => UpdateOutputUi();
-        foreach (var checkbox in new[] { Protection, AutoStartOutput }) { checkbox.Checked += (_, _) => QueueSettingsSave(); checkbox.Unchecked += (_, _) => QueueSettingsSave(); }
+        foreach (var checkbox in new[] { Protection, AutoStartOutput, CheckUpdatesAtStart, AutoInstallUpdates }) { checkbox.Checked += (_, _) => QueueSettingsSave(); checkbox.Unchecked += (_, _) => QueueSettingsSave(); }
         cues.CollectionChanged += (_, _) => QueueSettingsSave();
         LocationChanged += (_, _) => WindowConfigurationChanged();
         SizeChanged += (_, _) => WindowConfigurationChanged();
@@ -109,6 +111,7 @@ public partial class MainWindow
                 ImageFit = FitPicker.SelectedIndex, Transition = switcher.Style, TransitionMilliseconds = switcher.DurationMilliseconds,
                 FtbMilliseconds = switcher.FtbMilliseconds, ProgramBusUnlocked = ProgramLock.IsChecked != true,
                 AnimatePatterns = switcher.AnimatePatterns, AutoStartOutput = AutoStartOutput.IsChecked == true,
+                CheckUpdatesAtStart = CheckUpdatesAtStart.IsChecked == true, AutoInstallUpdates = AutoInstallUpdates.IsChecked == true, UpdateAttempt = updateAttempt,
                 Cues = cues.ToList(), Prepared = preview == Cue.Black ? null : preview, ShowPath = showPath, WebsiteDraft = websiteDraft, TextDraft = textDraft,
                 Rundown = CueModePage.Rundown.Snapshot(), NextRunCueId = CueModePage.Rundown.Next?.Id,
                 WindowX = bounds?.Left, WindowY = bounds?.Top, WindowWidth = bounds is Native.Rect b ? b.Right - b.Left : null,

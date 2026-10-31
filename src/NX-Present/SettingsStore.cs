@@ -35,6 +35,12 @@ public sealed record AppSettings
     public int? WindowWidth { get; init; }
     public int? WindowHeight { get; init; }
     public bool Maximized { get; init; }
+    /// <summary>Whether NX-Present looks for a newer release on the official release page each time it starts.</summary>
+    public bool CheckUpdatesAtStart { get; init; } = true;
+    /// <summary>Whether a found update is installed at start, as long as nothing is live. Otherwise the update waits for a click in Setup.</summary>
+    public bool AutoInstallUpdates { get; init; } = true;
+    /// <summary>Version the last started update setup was meant to install. Still set while the running version is older: the update did not complete.</summary>
+    public string? UpdateAttempt { get; init; }
 }
 
 public static class SettingsStore
