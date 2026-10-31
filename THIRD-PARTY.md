@@ -1,4 +1,4 @@
-# Fremdkomponenten von NX-Present 0.3.1
+# Fremdkomponenten von NX-Present 0.4.0
 
 Die Projektlizenz von NX-Present gilt ausschließlich für den eigenen Programmcode und eigene Inhalte. Sie schränkt die eigenständigen Rechte an den folgenden Komponenten nicht ein. Die Anwendung verwendet getrennte, dynamisch geladene Bibliotheken; diese werden nicht verschlüsselt oder gegen einen Austausch gesperrt.
 
@@ -13,7 +13,7 @@ Die Projektlizenz von NX-Present gilt ausschließlich für den eigenen Programmc
 
 ## Quellcode und Hinweise
 
-Neben dem Windows-Installer stellt die offizielle Veröffentlichung ein separates Archiv **NX-Present-ThirdParty-Sources-0.3.1.zip** bereit. Es enthält die unveränderten VLC- und LibVLCSharp-Quellen, den verwendeten Paketierungsquellstand, Quellarchive der Video-/Audio-Abhängigkeiten und ein Manifest mit Bezugsadressen und Prüfsummen. Diese Quellen und die darin enthaltenen Lizenz- und Copyrightdateien behalten ihre jeweiligen ursprünglichen Lizenzen. Sie fallen ausdrücklich nicht unter das Weitergabeverbot für NX-Present.
+Neben dem Windows-Installer stellt die offizielle Veröffentlichung ein separates Archiv **NX-Present-ThirdParty-Sources-0.4.0.zip** bereit. Es enthält die unveränderten VLC- und LibVLCSharp-Quellen, den verwendeten Paketierungsquellstand, Quellarchive der Video-/Audio-Abhängigkeiten und ein Manifest mit Bezugsadressen und Prüfsummen. Diese Quellen und die darin enthaltenen Lizenz- und Copyrightdateien behalten ihre jeweiligen ursprünglichen Lizenzen. Sie fallen ausdrücklich nicht unter das Weitergabeverbot für NX-Present.
 
 Die Windows-NuGet-Paketierung trennt GPL-Plugins in ein eigenes Paket. Die verwendete LGPL-Ausgabe schließt diese Plugins aus; das Paketierungsverfahren ist im mitgelieferten Quellstand dokumentiert. Die unveränderten VLC-Quellen enthalten zusätzlich GPL-lizenzierte Programmteile, die nicht Bestandteil der NX-Present-Anwendung sind. Die Beigabe des GPL-Lizenztextes für diese Quellen bedeutet keine Umlizenzierung von NX-Present unter die GPL.
 

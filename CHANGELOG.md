@@ -1,6 +1,6 @@
 # Änderungen
 
-## 0.4.0 – Bildmischer (noch nicht veröffentlicht)
+## 0.4.0 – Bildmischer
 
 Die Bedienung ist neu aufgebaut wie ein Videomischer.
 
@@ -21,7 +21,6 @@ Behobene Fehler der Vorgängerfassung (nach Durchsicht des Codes):
 
 - Der Überblender konnte beim Start eines Übergangs die Meldung „Die Breite und die Höhe dürfen nicht negativ sein“ auslösen. Stand der Griff weniger als einen Pixel von der Ausgangsstellung entfernt, rechnete die Zeichnung des gelben Füllbalkens mit einer negativen Breite, und WPF brach das Layout ab; die Meldung blockierte dann als Dialog die Bedienung. Das trat bei AUTO und bei GO im Cue Mode auf, wenn der erste Bildaufbau genau in diesen Bereich fiel. Der Balken wird jetzt erst ab einem Pixel gezeichnet, und eine Prüfung deckt die Griffstellungen und Breiten ab.
 - Die AUTO-Taste wurde während einer laufenden Blende abgeblendet statt rot und voll sichtbar zu leuchten.
-
 - Der Live-Monitor zeigte bei Videos und Webseiten ein Bildschirmfoto der Ausgabe, einmal pro Sekunde. Es gibt jetzt keine Bildschirmaufnahme mehr; beide Monitore zeigen die Bilder selbst in Echtzeit.
 - Übergänge liefen über ein zusätzliches Fenster mit einem Bildschirmfoto als Zwischenbild. Ein abgebrochener Wechsel ließ die Ausgabe schwarz. Der Übergang wird jetzt im Compositor gerechnet und bricht nie nach Schwarz ab.
 - Ein neuer Wechsel sperrte die Bedienung, bis der Inhalt geladen war, bei einer Webseite bis zu 15 Sekunden. Quellen laden jetzt in der Vorschau; AUTO ist erst freigegeben, wenn die Quelle bereit ist.
@@ -30,13 +29,10 @@ Behobene Fehler der Vorgängerfassung (nach Durchsicht des Codes):
 - Ein Wechsel der Tonausgabe lud die laufenden Medien neu. Das ist nicht mehr nötig.
 - Fotos aus Kameras und Telefonen konnten im Hochformat falsch herum stehen, weil die Ausrichtung der Aufnahme nicht beachtet wurde. Sehr große Bilder werden außerdem auf eine sinnvolle Größe verkleinert.
 - In Einstellungen und Showdateien wurden abgeleitete Felder (Symbol, Kategorie, Detail) mitgeschrieben. Alte Dateien bleiben lesbar.
+
 Technik: Videos laufen über die Speicherausgabe der Video-Engine, Webseiten über den Screencast eines unsichtbaren Browsers. Beides liefert Bilder an dieselben Monitore wie die Ausgabe. Die Prüfungen decken Logik, Übergänge pixelgenau, die Oberfläche und, mit `-Media`, echtes Video und echte Webseiten ab.
 
 Hinweise: Das Setup einer Veröffentlichung ist nicht signiert. Die Prüfsumme erkennt beschädigte oder unvollständige Downloads, aber keine manipulierte Veröffentlichung; auf einem PC mit Smart App Control kann Windows das Setup eines Updates blockieren, dann meldet NX-Present das und lässt die Datei im Update-Ordner liegen. Videos werden softwareseitig dekodiert und auf höchstens Full HD verkleinert. Webseiten lassen sich nicht bedienen; ihr Ton schaltet bei Übergängen um, statt zu überblenden. Das Verhalten mit einem echten Beamer, die Tonausgabe bei laufendem Wechsel des Windows-Geräts und die Bildrate bei hoher Last wurden nicht an Hardware geprüft.
-
-## Unveröffentlicht (vor 0.4.0)
-
-- Neue Seite „Cue Mode“: Ablauf mit mehrfach nutzbaren Quellen, Reihenfolge, Bezeichnungen, Regienotizen, Übergängen pro Cue und manuellem GO. Ablauf und Sitzung werden gespeichert; alte Showdateien bleiben lesbar.
 
 ## 0.3.1 – Erste öffentliche Veröffentlichung
 

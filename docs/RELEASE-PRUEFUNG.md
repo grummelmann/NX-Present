@@ -1,16 +1,19 @@
-# Releaseprüfung 0.3.1
+# Releaseprüfung 0.4.0
+
+Stand: 31.10.2026, gebaut mit `scripts/Build.ps1 -Installer -Media`.
+
+## Geprüft
 
 - Build: erfolgreich, 0 Warnungen und 0 Fehler.
-- Bestehende Validierung: 57 Prüfungen erfolgreich.
-- Installer: benutzerbezogene Installation erfolgreich (Exit 0).
-- WebView2: vorhandene Laufzeit erkannt; keine erneute Installation.
-- Frisches Benutzerprofil: Setup-Seite, keine automatisch gewählte Anzeige, keine Ausgabe.
-- Einzelmonitor: Ausgabe korrekt mit Hinweis auf zwei getrennte Anzeigen verhindert.
-- Start mit mitgeliefertem VLC-Katalog: etwa 2 Sekunden auf dem Test-PC.
-- Installer enthält Katalog sowie 321 passende Plugin-DLLs mit passenden Dateizeitstempeln.
-- Deinstallation: erfolgreich (Exit 0); persönliche Konfiguration bleibt erhalten.
-- Ursprüngliche Konfiguration nach dem Erststart-Test bytegenau wiederhergestellt.
-- Quellen: VLC/LibVLCSharp/Paketierung sowie 97 Contrib-Archive mit Prüfsummen gesammelt.
-- Kein neues Live-Projektionsverfahren geprüft: während dieser Prüfung meldete Windows nur eine Anzeige. Die Beamer-Funktionen wurden im vorherigen Entwicklungsstand auf dem Media-PC geprüft.
-- Der Nachinstallationspfad bei vollständig fehlender WebView2-Laufzeit wurde auf diesem PC nicht separat ausgeführt.
+- Validierung: 446 Prüfungen erfolgreich (Logik, Übergänge pixelgenau, Oberfläche, Cue-Liste, Updater; mit `-Media` auch echtes Video und echte Webseiten).
+- Installer: `NX-Present-Setup-0.4.0-x64.exe` kompiliert (Inno Setup, 83 MB), Prüfsumme in `SHA256SUMS.txt`.
+- Quellarchiv der Fremdkomponenten: `NX-Present-ThirdParty-Sources-0.4.0.zip`. Die Abhängigkeiten sind seit 0.3.1 unverändert (LibVLCSharp 3.10.2, VideoLAN.LibVLC.Windows 3.0.24, WebView2 SDK 1.0.4314.35), das Archiv von 0.3.1 wurde unter neuem Namen übernommen und hat dieselbe Prüfsumme.
+
+## Nicht geprüft
+
+- Das Setup wurde nicht ausgeführt, weil es die installierte Kopie ersetzen würde. Update von der Vorversion (Start, Setup → Updates zeigt die neue Version, „Nach Updates suchen“ meldet „aktuell“) steht aus.
+- Selbstaktualisierung auf einem echten PC über eine veröffentlichte Version.
+- Verhalten unter Smart App Control (Windows kann ein nicht signiertes Setup blockieren).
+- Echter Beamer und Bildrate bei hoher Last.
+- Tonausgabe bei laufendem Wechsel des Windows-Geräts.
 - Eigene Code-Signatur: nicht vorhanden.
