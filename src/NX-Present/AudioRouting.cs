@@ -8,20 +8,37 @@ using System.Text.Json;
 namespace NXPresent;
 
 public record AudioChoice(string Id, string Name) { public override string ToString() => Name; }
-public record AudioJournal(string[] Original, string Selected);
+public record AudioJournal(string[] Original, string Selected, string[]? Expected = null);
 
 public sealed class AudioRouting : IDisposable
 {
     private readonly IDeviceEnumerator enumerator = (IDeviceEnumerator)new DeviceEnumerator();
     private static string JournalPath => Path.Combine(App.DataDirectory, "audio-restore.json");
     private AudioJournal? journal;
+    private bool disposed;
     public AudioRouting()
     {
-        if (File.Exists(JournalPath))
+        try
         {
-            journal = JsonSerializer.Deserialize<AudioJournal>(File.ReadAllText(JournalPath));
-            Restore();
+            if (File.Exists(JournalPath))
+            {
+                try { journal = ReadJournal(JournalPath); }
+                catch (Exception ex) when (ex is JsonException or InvalidDataException)
+                {
+                    App.Log(ex);
+                    File.Move(JournalPath, JournalPath + ".invalid-" + Guid.NewGuid().ToString("N"));
+                }
+                Restore();
+            }
         }
+        catch { Marshal.ReleaseComObject(enumerator); throw; }
+    }
+    internal static AudioJournal ReadJournal(string path)
+    {
+        var data = JsonSerializer.Deserialize<AudioJournal>(File.ReadAllText(path));
+        if (data == null || data.Original == null || data.Original.Length != 3 || data.Original.Any(string.IsNullOrWhiteSpace) || string.IsNullOrWhiteSpace(data.Selected) || data.Expected != null && (data.Expected.Length != 3 || data.Expected.Any(x => x == null)))
+            throw new InvalidDataException("Die gespeicherte Audio-Wiederherstellung ist ungültig.");
+        return data;
     }
     public List<AudioChoice> Devices()
     {
@@ -61,14 +78,40 @@ public sealed class AudioRouting : IDisposable
     public void Select(string id)
     {
         if (!Devices().Any(d => d.Id == id)) throw new InvalidOperationException("Das gewählte Audiogerät ist nicht mehr verbunden.");
-        string[] original = journal?.Original ?? [DefaultId(0), DefaultId(1), DefaultId(2)];
+        var previous = journal;
+        string[] before = [DefaultId(0), DefaultId(1), DefaultId(2)];
+        string[] original = previous?.Original ?? before;
         journal = new AudioJournal(original, id);
         // Write the recovery information before the first system change.
         File.WriteAllText(JournalPath + ".tmp", JsonSerializer.Serialize(journal));
         File.Move(JournalPath + ".tmp", JournalPath, true);
         var policy = (IPolicyConfig)new PolicyConfig();
         try { for (int role = 0; role < 3; role++) Marshal.ThrowExceptionForHR(policy.SetDefaultEndpoint(id, role)); }
-        catch { Restore(); throw; }
+        catch
+        {
+            // Roll back this attempted change, including a second selection in the same session.
+            bool rolledBack = true;
+            var expected = new string[3];
+            for (int role = 0; role < 3; role++)
+            {
+                try
+                {
+                    if (DefaultId(role) == id && before[role] != id) Marshal.ThrowExceptionForHR(policy.SetDefaultEndpoint(before[role], role));
+                    string current = DefaultId(role);
+                    expected[role] = current == id ? id : previous != null && OwnsDefault(previous, role, current) ? current : "";
+                    if (current != before[role]) rolledBack = false;
+                }
+                catch (Exception ex) { App.Log(ex); rolledBack = false; expected[role] = id; }
+            }
+            journal = rolledBack ? previous : new AudioJournal(original, id, expected);
+            try
+            {
+                if (journal == null) File.Delete(JournalPath);
+                else { File.WriteAllText(JournalPath + ".tmp", JsonSerializer.Serialize(journal)); File.Move(JournalPath + ".tmp", JournalPath, true); }
+            }
+            catch (Exception ex) { App.Log(ex); }
+            throw;
+        }
         finally { Marshal.ReleaseComObject(policy); }
     }
     public void Restore()
@@ -84,7 +127,8 @@ public sealed class AudioRouting : IDisposable
                 // Respect a later manual change made in Windows.
                 try
                 {
-                    if (DefaultId(role) == journal.Selected && journal.Original[role] != journal.Selected)
+                    string current = DefaultId(role);
+                    if (OwnsDefault(journal, role, current) && journal.Original[role] != current)
                     {
                         if (active.Contains(journal.Original[role])) Marshal.ThrowExceptionForHR(policy.SetDefaultEndpoint(journal.Original[role], role));
                         else restored = false;
@@ -96,7 +140,13 @@ public sealed class AudioRouting : IDisposable
         }
         finally { Marshal.ReleaseComObject(policy); }
     }
-    public void Dispose() { Restore(); Marshal.ReleaseComObject(enumerator); }
+    internal static bool OwnsDefault(AudioJournal data, int role, string current) => current == (data.Expected?[role] ?? data.Selected);
+    public void Dispose()
+    {
+        if (disposed) return;
+        disposed = true;
+        try { Restore(); } finally { Marshal.ReleaseComObject(enumerator); }
+    }
 
     [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] private class DeviceEnumerator { }
     [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]

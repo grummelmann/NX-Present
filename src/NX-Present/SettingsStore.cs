@@ -20,7 +20,12 @@ public sealed record AppSettings
     public int TransitionMilliseconds { get; init; } = 500;
     public bool AnimatePatterns { get; init; } = true;
     public bool AutoStartOutput { get; init; } = true;
+    /// <summary>Whether the program bus accepts clicks (hot cut). Off by default so that no stray click changes the screen.</summary>
+    public bool ProgramBusUnlocked { get; init; }
+    public int FtbMilliseconds { get; init; } = 1000;
     public List<Cue>? Cues { get; init; }
+    public List<RunCueData>? Rundown { get; init; }
+    public Guid? NextRunCueId { get; init; }
     public Cue? Prepared { get; init; }
     public string? ShowPath { get; init; }
     public string WebsiteDraft { get; init; } = "https://";
@@ -42,12 +47,17 @@ public static class SettingsStore
         var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)) ?? throw new InvalidDataException("Einstellungen sind leer.");
         if (settings.Version != 1 || settings.Cues?.Count > 10000 || !Enum.IsDefined(settings.Transition)) throw new InvalidDataException("Unbekannte oder ungültige Einstellungen.");
         if (settings.Cues != null)
-            foreach (var cue in settings.Cues)
-                if (cue == null || cue.Name == null || cue.Source == null || !Enum.IsDefined(cue.Kind)) throw new InvalidDataException("Ungültige gespeicherte Medienliste.");
-        return settings with { Volume = Math.Clamp(settings.Volume, 0, 100), ImageFit = Math.Clamp(settings.ImageFit, 0, 2), TransitionMilliseconds = Math.Clamp(settings.TransitionMilliseconds, 100, 5000) };
+            foreach (var cue in settings.Cues) Cue.Validate(cue);
+        if (settings.Prepared != null) Cue.Validate(settings.Prepared);
+        if (settings.Rundown != null) CueRundown.Validate(settings.Rundown);
+        return settings with { Volume = Math.Clamp(settings.Volume, 0, 100), ImageFit = Math.Clamp(settings.ImageFit, 0, 2), TransitionMilliseconds = Math.Clamp(settings.TransitionMilliseconds, 100, 5000), FtbMilliseconds = Math.Clamp(settings.FtbMilliseconds, 0, 5000) };
     }
     public static void Save(AppSettings settings, string? path = null)
     {
+        if (settings.Cues?.Count > 10000) throw new InvalidDataException("Die Medienliste ist zu groß.");
+        if (settings.Cues != null) foreach (var cue in settings.Cues) Cue.Validate(cue);
+        if (settings.Prepared != null) Cue.Validate(settings.Prepared);
+        if (settings.Rundown != null) CueRundown.Validate(settings.Rundown);
         path ??= PathName;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         string temporary = path + ".tmp";

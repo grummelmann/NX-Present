@@ -1,6 +1,6 @@
-﻿; NX-Present Windows installer. Build with Inno Setup 7.
+; NX-Present Windows installer. Build with Inno Setup 7.
 #ifndef AppVersion
- #define AppVersion "0.3.1"
+ #define AppVersion "0.4.0"
 #endif
 #ifndef AppDir
  #define AppDir "..\artifacts\publish"

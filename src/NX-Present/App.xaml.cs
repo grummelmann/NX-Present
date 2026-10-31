@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading;
 using System.Collections.Generic;
@@ -15,7 +15,7 @@ public partial class App : System.Windows.Application
 {
     private Mutex? instance;
     public static LibVLC MediaEngine { get; private set; } = null!;
-    public static string DataDirectory { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NX-Present");
+    public static string DataDirectory { get; internal set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NX-Present");
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -33,7 +33,7 @@ public partial class App : System.Windows.Application
         {
             Title = "NX-Present · Startet", Width = 480, Height = 180, ResizeMode = ResizeMode.NoResize,
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
-            Background = new SolidColorBrush(Color.FromRgb(11, 13, 14)), Foreground = Brushes.White,
+            Background = new SolidColorBrush(Color.FromRgb(27, 27, 29)), Foreground = Brushes.White,
             Content = new TextBlock { Text = "NX-Present\n\nMedien-Engine wird gestartet …", FontSize = 20, Margin = new Thickness(28), VerticalAlignment = VerticalAlignment.Center }
         };
         splash.Show();
@@ -64,5 +64,11 @@ public partial class App : System.Windows.Application
     {
         try { File.AppendAllText(Path.Combine(DataDirectory, "startup.log"), DateTimeOffset.Now + " " + message + Environment.NewLine); } catch { }
     }
-    protected override void OnExit(ExitEventArgs e) { MediaEngine?.Dispose(); instance?.Dispose(); base.OnExit(e); }
+    protected override void OnExit(ExitEventArgs e)
+    {
+        VideoFeed.WaitForShutdown(4000);
+        MediaEngine?.Dispose();
+        instance?.Dispose();
+        base.OnExit(e);
+    }
 }

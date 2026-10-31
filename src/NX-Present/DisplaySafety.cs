@@ -66,36 +66,40 @@ internal static class Native
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out System.Drawing.Point point);
 }
 
-public sealed partial class OutputWindow : Window
+/// <summary>
+/// The projector window. It only hosts a compositor; what it shows is decided by the switcher.
+/// While protected it stays on top and the mouse cannot leave the control screen.
+/// </summary>
+public sealed class OutputWindow : Window
 {
-    public MediaSurface Surface { get; } = new(false);
+    private readonly bool fullscreen;
+    public MixerSurface Surface { get; } = new();
     public string Device { get; }
     public bool Protected { get; private set; }
-    private readonly System.Windows.Controls.Grid root = new();
-    private readonly System.Windows.Controls.Border black = new() { Background = System.Windows.Media.Brushes.Black, Visibility = Visibility.Collapsed };
-    public bool BlackedOut { get; private set; }
-    private bool previousMute;
-    public OutputWindow(string device)
+
+    public OutputWindow(string device) : this(device, true) { }
+    internal OutputWindow(string device, bool fullscreen)
     {
+        this.fullscreen = fullscreen;
         Device = device;
+        if (!fullscreen) { Width = 640; Height = 360; }
         Title = "NX-Present · Ausgabe";
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         ShowActivated = false;
         Background = System.Windows.Media.Brushes.Black;
-        Content = root;
-        root.Children.Add(Surface);
-        root.Children.Add(black);
+        Content = Surface;
         SourceInitialized += (_, _) => Place();
-        Closed += (_, _) => { outputClosed = true; CancelTransition(); ReleaseProtection(); Surface.Dispose(); };
+        Closed += (_, _) => { ReleaseProtection(); Surface.Detach(); };
     }
+
     public void Place()
     {
+        if (!fullscreen) return;
         var screen = Screen.AllScreens.FirstOrDefault(s => s.DeviceName == Device) ?? throw new InvalidOperationException("Ausgabe-Bildschirm ist nicht mehr verbunden.");
         var b = screen.Bounds;
         if (!Native.SetWindowPos(new WindowInteropHelper(this).Handle, Protected ? new IntPtr(-1) : IntPtr.Zero, b.X, b.Y, b.Width, b.Height, 0x0010 | 0x0040)) throw new Win32Exception();
-        transitionOverlay?.Place();
     }
     public void Protect(Screen controlScreen)
     {
@@ -112,20 +116,9 @@ public sealed partial class OutputWindow : Window
     }
     public void ReleaseProtection()
     {
-        Native.ClipCursor(IntPtr.Zero);
+        if (Protected) Native.ClipCursor(IntPtr.Zero);
         Protected = false;
         Topmost = false;
         Cursor = System.Windows.Input.Cursors.Arrow;
-    }
-    public void Blackout(bool enabled)
-    {
-        CancelTransition();
-        if (enabled == BlackedOut) return;
-        BlackedOut = enabled;
-        if (enabled) { previousMute = Surface.Muted; Surface.Muted = true; }
-        else Surface.Muted = previousMute;
-        // HWND-backed video and browser controls must be hidden explicitly.
-        Surface.Visibility = enabled ? Visibility.Hidden : Visibility.Visible;
-        black.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
     }
 }

@@ -25,6 +25,7 @@ public sealed class PatternView : FrameworkElement
     private long sampleStart = Stopwatch.GetTimestamp();
     private int frameCount;
     public string Pattern { get; set; } = "bars";
+    public bool Live { get; init; } = true;
     public double FrameSeconds { get; set; }
     public double FramesPerSecond { get; private set; }
     public bool Animate
@@ -41,7 +42,7 @@ public sealed class PatternView : FrameworkElement
     }
     private void UpdateSubscription()
     {
-        bool run = IsLoaded && IsVisible && animate && Pattern != "blackout";
+        bool run = Live && IsLoaded && IsVisible && animate && Pattern != "blackout";
         if (run && !subscribed)
         {
             sampleStart = Stopwatch.GetTimestamp(); frameCount = 0;

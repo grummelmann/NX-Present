@@ -15,6 +15,7 @@ Visual Studio ist nicht erforderlich. Die Werkzeuge zum Bauen gehören nicht in 
 
 ```powershell
 .\scripts\Build.ps1
+.\scripts\Build.ps1 -Media
 .\scripts\Build.ps1 -Installer -InstallerCompiler 'C:\Program Files\Inno Setup 7\ISCC.exe'
 ```
 
@@ -27,30 +28,62 @@ dotnet run --project tests/NX-Present.Validation/NX-Present.Validation.csproj -c
 dotnet publish src/NX-Present/NX-Present.csproj -c Release -r win-x64 --self-contained true -o artifacts/publish
 ```
 
-Die Validierung prüft unter anderem URL- und Dateitypfilter, Showdateien, sichtbare Bewegung der Testbilder, statische Referenzlinien, das vollständig schwarze Schutzbild, Uhrzeitwechsel und die Einstellungsdatei. Sie verändert standardmäßig keine Windows-Audiogeräte. Der zusätzliche Parameter `--audio` ist ein bewusster Integrationstest, der Standardgeräte umstellt und wiederherstellt; er darf nicht parallel zu einer laufenden NX-Present-Sitzung ausgeführt werden.
-
 `artifacts/` ist vollständig aus Git ausgeschlossen. Abhängigkeiten sind in `packages.lock.json` festgehalten. Ein Selbstbau bringt die .NET-Laufzeit mit. Die Bibliotheken werden dynamisch als getrennte Dateien eingebunden und nicht in einer einzelnen EXE versteckt.
+
+## Prüfungen
+
+`tests/NX-Present.Validation` ist ein Konsolenprogramm ohne Testframework. Jede Prüfung schreibt `PASS …` oder bricht mit der ersten Abweichung ab.
+
+Die Standardvalidierung braucht weder Video-Engine noch Browser und umfasst:
+
+- URL- und Dateitypfilter, Showdateien, Einstellungen, Cue-Ablauf
+- Testbilder (sichtbare Bewegung, feste Referenzlinien, Schutz-Schwarzbild) und Uhr
+- die Mischer-Logik mit künstlicher Uhr: Vorschau, CUT, AUTO, Überblender, Fade to Black, Tausch von Programm und Vorschau, Audio-Pegel, abgebrochene und fehlgeschlagene Quellen
+- den Compositor pixelgenau für jede Übergangsart (Mix, Dip, beide Wischer, Iris, Schieben) und für Schwarz
+- Standbilder mit EXIF-Ausrichtung und Größenbegrenzung
+- das Hauptfenster in einem unsichtbaren Fenster außerhalb aller Monitore: Medienpool, Tasten-Reihen, CUT und AUTO in Echtzeit, T-Bar, gesperrte Programm-Zeile, FTB, Mindestgröße, Speichern der Einstellungen. Dabei entstehen Screenshots der Oberfläche im Ordner `runs/` neben dem Testprogramm.
+
+Mit `--media` (oder `Build.ps1 -Media`) kommen die Prüfungen mit der echten Video-Engine und der WebView2-Laufzeit hinzu: ein selbst erzeugtes Testvideo (Bildfarben, Cue, Wiedergabe, Pause, Suchen, Schleife, erneutes Bereitstellen, Freigabe, defekte Datei), eine lokale animierte Webseite (Bilder, Bewegung, Freigabe des Browserfensters, nicht erreichbare Adresse) und ein Mischer mit echten Quellen. `--video <Dateipfad>` ergänzt einen Test mit einer eigenen Videodatei. `--media-only` führt nur die Mischer- und Medienprüfungen aus.
+
+Der zusätzliche Parameter `--audio` ist ein bewusster Integrationstest, der Windows-Standardgeräte umstellt und wiederherstellt; er darf nicht parallel zu einer laufenden NX-Present-Sitzung ausgeführt werden.
 
 ## Aufbau
 
 | Bereich | Aufgabe |
 | --- | --- |
-| `MainWindow*` | Steueroberfläche, Navigation, Bibliothek, gespeicherte Einstellungen und Fensterrahmen |
-| `MediaSurface` | Bilder, Videos, Webseiten, Texte, Uhr und Testbilder in einer Fläche |
-| `DisplaySafety` / `OutputWindow*` | Beamer-Fenster, Mausschutz, Schwarzbild und Inhaltswechsel |
-| `TransitionOverlay` | Übergänge auch über native Video-/Browserfenster |
-| `PatternView` / `ClockView` | Testsignale und Uhr |
+| `Mixer/Switcher` | Logik des Mischers: Programm, Vorschau, CUT, AUTO, Überblender, FTB, Audio-Pegel. Kennt keine Oberfläche; die Zeit kommt von außen |
+| `Mixer/SourceFeed` und Ableitungen | Eine Quelle liefert Bilder und erzeugt für jeden Monitor eine eigene Ansicht derselben Bilder: `StillFeed`, `VectorFeed`, `VideoFeed`, `WebFeed` |
+| `Mixer/VideoFeed` | LibVLC über die Speicherausgabe: jedes Bild landet in einer `WriteableBitmap`. Der Player wird nur über eine serielle Warteschlange bedient, nie vom UI-Thread |
+| `Mixer/WebFeed` | Webseite in einem Browserfenster außerhalb aller Monitore; die Bilder kommen per Screencast des Browsers |
+| `Mixer/MixerSurface` | Compositor: Programm, einlaufende Quelle, Übergang und Schwarz. Ausgabefenster und Monitore benutzen je einen |
+| `Mixer/MonitorView`, `TBar`, `BusKey` | Monitor mit Tally und Wiedergabeleiste, Überblender, Taste für Zeilen und Pool |
+| `MainWindow*` | Oberfläche des Mischers, Pool, Einstellungen, Cue-Anbindung und Fensterrahmen |
+| `CueModeView`, `CueRundown` | Geplanter Ablauf; GO lädt in die Vorschau und blendet über |
+| `DisplaySafety` | Beamer-Fenster (`OutputWindow`), Mausschutz, Anzeigenliste |
+| `PatternView` / `ClockView` / `CueVisual` | Testsignale, Uhr, Texttafeln und deren Vorschaubilder |
 | `AudioRouting` | Gemeinsames Windows-Standardgerät und Wiederherstellung |
 | `SettingsStore` / `ShowFile` | Einstellungen und `.nxshow`-Dateien |
 | `installer/` | Benutzerbezogenes Windows-Setup mit WebView2-Erkennung |
 
-Beim ersten Start wird kein Ausgabe-Bildschirm geraten. Änderungen am Renderpfad sollten getrennt auf der tatsächlichen Beamer-Hardware beurteilt werden. Die FPS-Anzeige misst WPF-Aktualisierungen, keine physischen Präsentationszeitpunkte.
+### Der Signalweg
+
+Jede Quelle ist ein `SourceFeed`. Alle Monitore und das Ausgabefenster bauen mit `CreateView` eine eigene Ansicht, die dieselbe Bitmap oder Zeichnung zeigt. Es gibt deshalb keine Bildschirmaufnahme, keine Überlagerungsfenster und keine eingefrorene Vorschau: Der Programm-Monitor ist ein zweiter Compositor über denselben Bildern wie die Ausgabe.
+
+`Switcher` hält die Quelle auf Programm und die Vorschau. Ein Übergang arbeitet mit einem Fortschritt von 0 bis 1; `MixerSurface` setzt daraus Deckkraft, Masken oder Verschiebung. Nach dem Abschluss tauschen Programm und Vorschau die Plätze, und die bisherige Quelle wird mit `Arm()` zurückgestellt (ein Video wartet wieder auf seinem ersten Bild).
+
+### Video
+
+`VideoFeed` setzt LibVLC auf die Speicherausgabe (`RV32`). Das Bild wird in der Größe des Videos nach Seitenverhältnis (einschließlich Pixelformat) auf höchstens 1920 × 1080 festgelegt. VLC schreibt in drei native Puffer; der UI-Thread kopiert das jeweils letzte fertige Bild in die `WriteableBitmap`. Ein angehaltenes Bild zeichnet VLC immer wieder neu; es wird nur wenige Male kopiert. Alle Befehle (Abspielen, Anhalten, Suchen, Lautstärke) laufen über eine serielle Warteschlange. Zeit, Länge und Zustand liest die Oberfläche aus zwischengespeicherten Werten. Beim Freigeben werden Player und Puffer erst nach dem letzten Rückruf freigegeben; beim Beenden wartet `VideoFeed.WaitForShutdown`.
+
+### Webseiten
+
+`WebFeed` startet ein `WebView2` in einem Fenster bei Position −12000, −12000. Chromium würde ein solches Fenster als verdeckt behandeln und das Zeichnen einstellen, deshalb setzt `WebHost` die Startparameter `--disable-features=CalculateNativeWinOcclusion`, `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding` und `--disable-background-timer-throttling`. Die Seite wird mit `Emulation.setDeviceMetricsOverride` auf 1920 × 1080 festgelegt, die Bilder liefert `Page.startScreencast` als JPEG. Bleibt der Screencast stumm, nimmt `CapturePreviewAsync` einzelne Bilder auf.
 
 ## Veröffentlichen
 
 1. Version und Änderungsübersicht aktualisieren.
-2. Projekt bauen, Validierung ausführen und Setup erzeugen.
-3. Installation, Start, Live-Freigabe, Schwarzbild, Notausstieg und Deinstallation prüfen.
+2. Projekt bauen, Validierung mit `-Media` ausführen und Setup erzeugen.
+3. Installation, Start, Ausgabe mit echtem Beamer, CUT, AUTO, Video und Webseite, Schwarzbild, Notausstieg und Deinstallation prüfen.
 4. Fremdlizenzen und zugehörige Quellpakete prüfen und beilegen.
 5. Ausschließlich im offiziellen Repository veröffentlichen: Installer, `SHA256SUMS.txt` und Fremdquellen.
 

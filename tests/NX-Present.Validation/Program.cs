@@ -23,6 +23,7 @@ class Program
             Check(rejected, "Reject executable import");
             var folder = Path.Combine(AppContext.BaseDirectory, "runs", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
+            App.DataDirectory = folder;
             var path = Path.Combine(folder, "show.nxshow");
             var expected = new List<Cue> { Cue.FromFile(Path.Combine(folder, "Medien", "Bühne.png")), new(CueKind.Text, "Gruß", "ÄÖÜ · Bühne"), new(CueKind.Pattern, "Raster", "grid") };
             ShowFile.Save(path, expected);
@@ -60,6 +61,7 @@ class Program
             var midnight = new DateTime(2026, 10, 26, 23, 59, 59);
             Check(ClockView.TimeText(midnight.AddSeconds(1)) == "00:00:00", "24-hour clock midnight rollover");
             Check(!RenderElement(new ClockView { CurrentTime = midnight }).SequenceEqual(RenderElement(new ClockView { CurrentTime = midnight.AddSeconds(1) })), "Projected clock renders changing time and date");
+            Check(!RenderElement(new ClockView { CurrentTime = midnight.AddMilliseconds(100) }).SequenceEqual(RenderElement(new ClockView { CurrentTime = midnight.AddMilliseconds(600) })), "Clock progress moves smoothly between whole seconds");
             expected.Add(new Cue(CueKind.Clock, "Uhr", "local"));
             ShowFile.Save(path, expected);
             Check(ShowFile.Load(path).SequenceEqual(expected), "Clock cue show roundtrip preserves existing kinds");
@@ -85,6 +87,8 @@ class Program
                 currentProcess.Refresh();
                 Check(currentProcess.PriorityClass == priority, "Presentation scheduling is restored after disposal");
             }
+            RundownChecks.Run(Check, folder);
+            PresentationChecks.Run(Check, folder, args);
             if (args.Contains("--audio"))
             {
                 Directory.CreateDirectory(App.DataDirectory);

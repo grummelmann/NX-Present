@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$Installer,
+    [switch]$Media,
     [string]$InstallerCompiler,
     [string]$DotNet = 'dotnet'
 )
@@ -20,7 +21,10 @@ try {
     New-Item -ItemType Directory -Path $appDir,$releaseDir -Force | Out-Null
     Invoke-DotNet -Arguments @('restore','src/NX-Present/NX-Present.csproj','--locked-mode')
     Invoke-DotNet -Arguments @('build','src/NX-Present/NX-Present.csproj','-c','Release','--no-restore')
-    Invoke-DotNet -Arguments @('run','--project','tests/NX-Present.Validation/NX-Present.Validation.csproj','-c','Release')
+    $validation = @('run','--project','tests/NX-Present.Validation/NX-Present.Validation.csproj','-c','Release')
+    # -Media adds the checks that need the real video engine and the WebView2 runtime.
+    if ($Media) { $validation += @('--','--media') }
+    Invoke-DotNet -Arguments $validation
     Invoke-DotNet -Arguments @('publish','src/NX-Present/NX-Present.csproj','-c','Release','-r','win-x64','--self-contained','true','-o',$appDir,'-p:DebugType=None','-p:DebugSymbols=false')
     & (Join-Path $PSScriptRoot 'Prepare-PluginCache.ps1') -AppDirectory $appDir
     Copy-Item -LiteralPath 'LICENSE.txt' -Destination (Join-Path $appDir 'LICENSE-NX-Present.txt')

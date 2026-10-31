@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
@@ -10,7 +10,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using Screen = System.Windows.Forms.Screen;
@@ -20,58 +19,64 @@ namespace NXPresent;
 public partial class MainWindow : Window
 {
     private readonly ObservableCollection<Cue> cues = new();
-    private readonly MediaSurface preview = new(true);
-    private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly Switcher switcher;
+    private readonly FeedFactory factory;
+    private readonly bool isolated;
+    private readonly string? settingsPath;
+    private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private OutputWindow? output;
     private PresentationPerformance? presentationPerformance;
     private AudioRouting? audio;
-    private Cue? prepared;
     private HwndSource? hwndSource;
-    private bool hotkeyReady;
-    private bool seeking;
-    private bool closing;
-    private bool liveBusy;
-    private bool dirty;
-    private bool loadingShow;
+    private bool hotkeyReady, closing, nativePlacementRestored, interfaceReady, dirty, loadingShow;
     private string? showPath;
+    private Stretch fit = Stretch.Uniform;
     private const int EmergencyHotkey = 0x4E58;
 
-    public MainWindow()
+    internal Switcher Mixer => switcher;
+
+    public MainWindow() : this(null, null, null) { }
+    internal MainWindow(LibVLCSharp.Shared.LibVLC? engine, AppSettings? session, string? sessionPath)
     {
-        LoadSavedSettings();
+        isolated = session != null;
+        settingsPath = sessionPath;
+        string browserProfile = isolated ? Path.Combine(Path.GetDirectoryName(sessionPath!)!, "Browser") : Path.Combine(App.DataDirectory, "Browser");
+        factory = new FeedFactory(isolated ? engine : App.MediaEngine, browserProfile);
+        switcher = new Switcher(factory.Create);
+        if (session == null) LoadSavedSettings(); else savedSettings = session;
         InitializeComponent();
-        CueList.ItemsSource = cues;
-        PreviewHost.Children.Add(preview);
-        preview.Failed += message => Status("Vorschau: " + message);
-        AddPatterns();
-        dirty = false;
+        BuildTransitionControls();
+        InitializePool();
+        PreviewMonitor.Attach(switcher);
+        ProgramMonitor.Attach(switcher);
         ReadDisplays();
-        try { audio = new AudioRouting(); ReadAudio(); }
+        try { if (!isolated) { audio = new AudioRouting(); ReadAudio(); } }
         catch (Exception ex) { App.Log(ex); Status("Audiogeräte konnten nicht gelesen werden: " + ex.Message); }
         RestoreControls();
+        interfaceReady = true;
+        dirty = false;
         InitializeInterface();
+        InitializeCueMode();
         WireSettings();
+        switcher.Changed += OnSwitcherChanged;
+        switcher.Message += Status;
+        switcher.Taken += OnTaken;
+        CompositionTarget.Rendering += OnRendering;
         SourceInitialized += (_, _) => InitializeNativeWindow();
         // WindowChrome may create the HWND while InitializeComponent is running.
         if (new WindowInteropHelper(this).Handle != IntPtr.Zero) InitializeNativeWindow();
-        SystemEvents.DisplaySettingsChanged += DisplaysChanged;
-        SystemEvents.SessionSwitch += SessionChanged;
-        timer.Tick += (_, _) => UpdateLive();
+        if (!isolated) { SystemEvents.DisplaySettingsChanged += DisplaysChanged; SystemEvents.SessionSwitch += SessionChanged; }
+        timer.Tick += (_, _) => Housekeeping();
         timer.Start();
         UpdateClock();
+        SyncMixerState(SwitcherChange.Feeds | SwitcherChange.Transition | SwitcherChange.Black | SwitcherChange.Settings | SwitcherChange.Position);
         Loaded += async (_, _) =>
         {
             InitializeNativeWindow();
             App.Trace("Loaded: emergency hotkey=" + hotkeyReady);
             settingsReady = true;
-            if (savedSettings.Prepared is Cue last)
-            {
-                var inList = cues.FirstOrDefault(x => x == last);
-                if (inList != null) CueList.SelectedItem = inList;
-                else await Prepare(last);
-            }
-            else if (cues.Count > 0) CueList.SelectedIndex = 0;
-            if (savedSettings.AutoStartOutput && savedSettings.OutputDevice != null) StartOutput(this, new RoutedEventArgs());
+            if (savedSettings.Prepared is Cue last && !closing) await switcher.SetPreviewAsync(last);
+            if (!isolated && savedSettings.AutoStartOutput && savedSettings.OutputDevice != null) StartOutput(this, new RoutedEventArgs());
             else if (savedSettings.OutputDevice == null)
             {
                 OpenSettingsPage(this, new RoutedEventArgs());
@@ -83,6 +88,7 @@ public partial class MainWindow : Window
 
     private void InitializeNativeWindow()
     {
+        if (isolated) return;
         if (hotkeyReady) return;
         var handle = new WindowInteropHelper(this).Handle;
         if (handle == IntPtr.Zero) return;
@@ -95,14 +101,9 @@ public partial class MainWindow : Window
             Protection.IsEnabled = false;
             Status("Notausstieg konnte nicht registriert werden. Ausgabeschutz bleibt deaktiviert.");
         }
-        if (!RestoreWindowPlacement()) PlaceControl();
+        if (!nativePlacementRestored) { nativePlacementRestored = true; if (!RestoreWindowPlacement()) PlaceControl(); }
     }
-    private void AddPatterns()
-    {
-        (string Name, string Id)[] patterns = [("Farbbalken", "bars"), ("Raster und Ausrichtung", "grid"), ("Graustufen", "gray"), ("Schachbrett", "checker"), ("Weiß", "white"), ("Rot", "red"), ("Grün", "green"), ("Blau", "blue"), ("Schwarz", "black"), ("NX-Present Startbild", "logo")];
-        foreach (var p in patterns) cues.Add(new Cue(CueKind.Pattern, p.Name, p.Id));
-        cues.Add(new Cue(CueKind.Clock, "Uhr", "local"));
-    }
+
     private void Status(string message) => StatusText.Text = message;
     private void ReadDisplays()
     {
@@ -119,7 +120,7 @@ public partial class MainWindow : Window
         var screen = Screen.AllScreens.FirstOrDefault(s => s.DeviceName != outputDevice);
         if (screen == null) return;
         var area = screen.WorkingArea;
-        Native.SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, area.X + 36, area.Y + 28, Math.Min(1550, area.Width - 72), Math.Min(980, area.Height - 56), 0x0014);
+        Native.SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, area.X + 36, area.Y + 28, Math.Min(1600, area.Width - 72), Math.Min(960, area.Height - 56), 0x0014);
     }
     private void ReadAudio()
     {
@@ -130,104 +131,65 @@ public partial class MainWindow : Window
         try { defaultId = audio.DefaultId(); } catch { }
         AudioPicker.SelectedItem = devices.FirstOrDefault(x => x.Id == defaultId);
     }
-    private void RefreshDisplays(object sender, RoutedEventArgs e) { if (output != null) CloseOutput(); ReadDisplays(); Status("Anzeigen wurden neu erkannt. Ausgabe kann erneut gestartet werden."); }
+    private void RefreshDisplays(object sender, RoutedEventArgs e) { if (output != null) CloseOutput(); ReadDisplays(); Status("Anzeigen wurden neu erkannt. Die Ausgabe kann erneut gestartet werden."); }
     private void RefreshAudio(object sender, RoutedEventArgs e) { try { ReadAudio(); Status("Audiogeräte aktualisiert."); } catch (Exception ex) { App.Log(ex); Status(ex.Message); } }
-    private async void ApplyAudio(object sender, RoutedEventArgs e)
+    private void ApplyAudio(object sender, RoutedEventArgs e)
     {
-        if (liveBusy) return;
         if (audio == null || AudioPicker.SelectedItem is not AudioChoice choice) { Status("Bitte ein verfügbares Audiogerät auswählen."); return; }
-        var button = (System.Windows.Controls.Button)sender;
-        liveBusy = true;
-        UpdateOutputButtons();
-        button.IsEnabled = false;
-        var liveCue = output?.Surface.Current;
-        var previewCue = prepared;
-        long liveTime = output?.Surface.Time ?? 0;
-        bool wasBlack = output?.BlackedOut ?? false;
         try
         {
-            output?.Blackout(true);
-            output?.Surface.Halt();
-            preview.Halt();
             audio.Select(choice.Id);
             appliedAudioDevice = choice.Id;
             QueueSettingsSave();
-            if (previewCue != null) await preview.ShowCue(previewCue);
-            if (output != null && liveCue != null)
-            {
-                await output.Surface.ShowCue(liveCue);
-                if (liveCue.Kind == CueKind.Video) { await Task.Delay(500); output?.Surface.Seek(liveTime); }
-            }
-            output?.Blackout(wasBlack);
-            ApplyPlaybackOptions();
-            Status("Ton: " + choice.Name + ". Laufende Medien wurden für den Gerätewechsel neu geladen.");
+            Status("Ton: " + choice.Name + ". Laufende Videos und Webseiten folgen dem neuen Standardgerät.");
         }
         catch (Exception ex) { App.Log(ex); Status("Tonauswahl fehlgeschlagen: " + ex.Message); }
-        finally { liveBusy = false; if (!closing) { button.IsEnabled = true; UpdateOutputButtons(); ReadAudio(); } }
+        finally { try { ReadAudio(); } catch (Exception ex) { App.Log(ex); } }
     }
-    private async void StartOutput(object sender, RoutedEventArgs e)
+
+    // ---- output window ----
+    private void ToggleOutput(object sender, RoutedEventArgs e)
+    {
+        if (output == null) StartOutput(sender, e); else StopOutput(sender, e);
+    }
+    private void StartOutput(object sender, RoutedEventArgs e)
     {
         if (output != null) return;
-        if (DisplayPicker.SelectedItem is not DisplayChoice choice || choice.Screen is not Screen screen) { Status("Bitte einen verbundenen Ausgabe-Bildschirm wählen."); return; }
-        if (Screen.AllScreens.Length < 2) { Status("NX-Present benötigt zwei getrennte Bildschirme im Modus „Erweitern“."); return; }
+        if (DisplayPicker.SelectedItem is not DisplayChoice choice || choice.Screen is not Screen screen) { Status("Bitte unter Setup einen verbundenen Ausgabe-Bildschirm wählen."); return; }
+        if (Screen.AllScreens.Length < 2) { Status("Für die Ausgabe braucht NX-Present zwei getrennte Bildschirme im Modus „Erweitern“. Der Mischer arbeitet auch ohne Ausgabe."); return; }
         try
         {
             // Move the control window away before covering the selected screen.
             if (Native.GetWindowRect(new WindowInteropHelper(this).Handle, out var controlBounds) && Screen.FromPoint(new System.Drawing.Point((controlBounds.Left + controlBounds.Right) / 2, (controlBounds.Top + controlBounds.Bottom) / 2)).DeviceName == choice.Device) PlaceControl();
-            output = new OutputWindow(choice.Device);
-            output.Surface.Fit = preview.Fit;
-            output.Surface.AnimatePatterns = preview.AnimatePatterns;
-            output.TransitionFrameReady += image =>
-            {
-                LiveImage.Source = image;
-                LiveImage.Visibility = Visibility.Visible;
-                LiveVectorHost.Visibility = Visibility.Collapsed;
-                LivePlaceholder.Visibility = Visibility.Collapsed;
-            };
-            output.Surface.Failed += message => { output?.Blackout(true); LiveHeading.Text = "FEHLER · SCHWARZBILD"; Status("Ausgabe: " + message); };
-            output.Closed += (_, _) => { output = null; presentationPerformance?.Dispose(); presentationPerformance = null; UpdateOutputButtons(); };
-            output.Show();
+            var window = new OutputWindow(choice.Device);
+            window.Surface.Fit = fit;
+            window.Surface.Attach(switcher);
+            window.Closed += (_, _) => { if (ReferenceEquals(output, window)) OutputClosed(); };
+            output = window;
+            window.Show();
             presentationPerformance = new PresentationPerformance();
-            await output.Surface.ShowCue(new Cue(CueKind.Pattern, "Schwarzbild", "blackout"));
-            ApplyPlaybackOptions();
             ApplyProtection();
-            LiveName.Text = "Schwarzbild";
-            LiveHeading.Text = "LIVE · SCHWARZBILD";
-            UpdateOutputButtons();
-            Status("Ausgabe aktiv auf " + choice.Label + ". Inhalt vorbereiten und „Live anzeigen“ drücken.");
+            UpdateOutputUi();
+            Status("Ausgabe aktiv auf " + choice.Label + ". Was im Programm-Monitor steht, steht auf der Leinwand.");
             Activate();
         }
         catch (Exception ex) { App.Log(ex); CloseOutput(); Status("Ausgabe konnte nicht starten: " + ex.Message); }
     }
-    private void UpdateOutputButtons()
-    {
-        SyncInterfaceState();
-        bool active = output != null;
-        StartOutputButton.IsEnabled = !active && !liveBusy;
-        StopOutputButton.IsEnabled = active;
-        DisplayPicker.IsEnabled = !active;
-        BlackButton.IsEnabled = active;
-        GoLiveButton.IsEnabled = active && prepared != null && !liveBusy;
-        if (!active)
-        {
-            LiveImage.Source = null;
-            LiveImage.Visibility = Visibility.Visible;
-            LiveVectorHost.Background = null;
-            LiveVectorHost.Visibility = Visibility.Collapsed;
-            LivePlaceholder.Visibility = Visibility.Visible;
-            LiveHeading.Text = "AUSGABE GESCHLOSSEN";
-            LiveName.Text = "Kein Live-Inhalt";
-            BlackButton.Content = "SCHWARZ + STUMM";
-        }
-    }
     private void StopOutput(object sender, RoutedEventArgs e) { CloseOutput(); Status("Ausgabe geschlossen. Maus und Bildschirm sind freigegeben."); }
     private void CloseOutput()
     {
-        Native.ClipCursor(IntPtr.Zero);
+        if (!isolated) Native.ClipCursor(IntPtr.Zero);
         var existing = output;
-        if (existing != null) { existing.ReleaseProtection(); existing.Close(); }
         output = null;
-        UpdateOutputButtons();
+        if (existing != null) { existing.ReleaseProtection(); existing.Close(); }
+        OutputClosed();
+    }
+    private void OutputClosed()
+    {
+        output = null;
+        presentationPerformance?.Dispose();
+        presentationPerformance = null;
+        UpdateOutputUi();
     }
     private void ApplyProtection()
     {
@@ -244,7 +206,7 @@ public partial class MainWindow : Window
     private void ProtectionChanged(object sender, RoutedEventArgs e)
     {
         if (output == null) return;
-        try { ApplyProtection(); Status(Protection.IsChecked == true ? "Ausgabeschutz aktiv. Notausstieg: Strg + Alt + F10." : "Ausgabeschutz ausgeschaltet. Maus ist frei."); }
+        try { ApplyProtection(); Status(Protection.IsChecked == true ? "Ausgabeschutz aktiv. Notausstieg: Strg + Alt + F10." : "Ausgabeschutz ausgeschaltet. Die Maus ist frei."); }
         catch (Exception ex) { App.Log(ex); output?.ReleaseProtection(); Protection.IsChecked = false; Status(ex.Message); }
     }
     private IntPtr WindowMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -264,235 +226,149 @@ public partial class MainWindow : Window
     {
         if (e.Reason == SessionSwitchReason.SessionLock || e.Reason == SessionSwitchReason.RemoteDisconnect) Dispatcher.BeginInvoke(() => { if (!closing) CloseOutput(); });
     }
-    private async void CueSelected(object sender, SelectionChangedEventArgs e)
+
+    // ---- the mixer ----
+    private void OnRendering(object? sender, EventArgs e) => switcher.Tick();
+    private void OnSwitcherChanged(SwitcherChange change)
     {
-        if (CueList.SelectedItem is Cue cue) await Prepare(cue);
-        else if (cues.Count == 0)
-        {
-            prepared = null;
-            preview.Halt();
-            PreparedName.Text = "Noch kein Inhalt vorbereitet";
-            PreparedDetail.Text = "Wähle links einen Inhalt aus.";
-            UpdateOutputButtons();
-        }
+        if (closing) return;
+        SyncMixerState(change);
+        if ((change & (SwitcherChange.Feeds | SwitcherChange.Settings | SwitcherChange.Black)) != 0) QueueSettingsSave();
     }
-    private async Task Prepare(Cue cue)
+    private void OnTaken(SourceFeed outgoing, SourceFeed incoming)
     {
-        prepared = cue;
+        TransitionBar.EndDrag();
+        TransitionBar.Value = 0;
+        Status("Programm: " + (incoming.Cue == Cue.Black ? "Schwarz" : incoming.Cue.Name));
+        CompleteRundownStep(incoming);
+    }
+
+    private void CutClicked(object sender, RoutedEventArgs e) => switcher.Cut();
+    private void AutoClicked(object sender, RoutedEventArgs e) => switcher.Auto();
+    private void FtbClicked(object sender, RoutedEventArgs e) => switcher.ToggleFtb();
+    private void BlackMuteClicked(object sender, RoutedEventArgs e) => switcher.SetBlackMute(BlackMuteButton.IsChecked == true);
+    private async Task SelectPreview(Cue cue)
+    {
+        if (await switcher.SetPreviewAsync(cue)) Status("Vorschau: " + (cue == Cue.Black ? "Schwarz" : cue.Name) + ". CUT oder AUTO schaltet sie auf Programm.");
+    }
+    private async Task HotCut(Cue cue)
+    {
+        if (await switcher.SetPreviewAsync(cue)) switcher.Cut();
+    }
+    private async void PreviewKeyClicked(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is BusKey key) await SelectPreview(key.Cue);
+    }
+    private async void ProgramKeyClicked(object sender, RoutedEventArgs e)
+    {
+        if (ProgramLock.IsChecked == true) { Status("Die Programm-Tasten sind gesperrt. Mit dem Schloss schaltest du die Direktwahl frei."); return; }
+        if (((FrameworkElement)sender).DataContext is BusKey key) await HotCut(key.Cue);
+    }
+    private void ProgramLockChanged(object sender, RoutedEventArgs e)
+    {
+        if (!interfaceReady) return;
+        bool locked = ProgramLock.IsChecked == true;
+        ProgramLock.Content = locked ? "" : "";
+        Status(locked ? "Programm-Tasten gesperrt." : "Direktwahl freigegeben: Ein Klick auf eine Programm-Taste schneidet sofort.");
         QueueSettingsSave();
-        PreparedName.Text = cue.Name;
-        PreparedDetail.Text = cue.Detail == cue.Category ? cue.Category : cue.Category + " · " + cue.Detail;
-        UpdateOutputButtons();
-        bool ok = await preview.ShowCue(cue);
-        if (prepared == cue) Status(ok ? "Vorbereitet: " + cue.Name + ". Die Live-Ausgabe bleibt unverändert." : "Vorschau fehlgeschlagen: " + preview.LastError);
     }
-    private async void GoLive(object sender, RoutedEventArgs e) => await TakeLive();
-    private async Task TakeLive()
+    private void ReloadClicked(object sender, RoutedEventArgs e) => switcher.Preview?.Reload();
+
+    private void VolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (prepared == null || output == null || liveBusy) return;
-        liveBusy = true;
-        UpdateOutputButtons();
-        var cue = prepared;
-        var target = output;
-        try
-        {
-            Status("Wechsel zu: " + cue.Name + " …");
-            TransitionKind transition = (TransitionKind)TransitionPicker.SelectedIndex;
-            int milliseconds = DurationPicker.SelectedItem is ComboBoxItem duration ? int.Parse((string)duration.Tag, CultureInfo.InvariantCulture) : 500;
-            bool ok = await target.Present(cue, transition, TimeSpan.FromMilliseconds(milliseconds));
-            if (output != target) return;
-            if (ok)
-            {
-                target.Blackout(false);
-                ApplyPlaybackOptions();
-                LiveName.Text = cue.Name;
-                LiveHeading.Text = "LIVE · " + cue.Category;
-                BlackButton.Content = "SCHWARZ + STUMM";
-                Status("Live: " + cue.Name);
-                UpdateLive();
-            }
-            else if (target.Surface.LastError != null) { LiveHeading.Text = "FEHLER · SCHWARZBILD"; Status("Live-Ausgabe fehlgeschlagen: " + target.Surface.LastError); }
-            else { LiveHeading.Text = "LIVE · SCHWARZ + STUMM"; BlackButton.Content = "BILD FREIGEBEN"; Status("Übergang abgebrochen. Schwarzbild und Stummschaltung sind aktiv."); }
-        }
-        catch (Exception ex) { App.Log(ex); Status("Wechsel fehlgeschlagen: " + ex.Message); }
-        finally { liveBusy = false; UpdateOutputButtons(); }
+        if (!interfaceReady) return;
+        VolumeReadout.Text = (int)VolumeSlider.Value + " %";
+        switcher.Volume = (int)VolumeSlider.Value;
+        QueueSettingsSave();
     }
-    private void ToggleBlack(object sender, RoutedEventArgs e)
+    private void PlaybackOptionsChanged(object sender, RoutedEventArgs e)
     {
-        if (output == null) return;
-        output.Blackout(!output.BlackedOut);
-        ApplyPlaybackOptions();
-        BlackButton.Content = output.BlackedOut ? "BILD FREIGEBEN" : "SCHWARZ + STUMM";
-        LiveHeading.Text = output.BlackedOut ? "LIVE · SCHWARZ + STUMM" : "LIVE · " + output.Surface.Current?.Category;
-        Status(output.BlackedOut ? "Schwarzbild aktiv, Ton stumm. Videos laufen im Hintergrund weiter." : "Vorheriger Live-Inhalt wieder sichtbar.");
-        UpdateLive();
+        if (!interfaceReady) return;
+        switcher.Loop = RepeatVideo.IsChecked == true;
+        switcher.Muted = MuteToggle.IsChecked == true;
+        QueueSettingsSave();
     }
-    private void ApplyPlaybackOptions()
-    {
-        if (RepeatVideo == null || MuteLive == null || VolumeSlider == null) return;
-        preview.Loop = RepeatVideo.IsChecked == true;
-        if (output == null) return;
-        output.Surface.Loop = RepeatVideo.IsChecked == true;
-        output.Surface.Volume = (int)VolumeSlider.Value;
-        output.Surface.Muted = MuteLive.IsChecked == true || output.BlackedOut;
-    }
-    private void PlaybackOptionsChanged(object sender, RoutedEventArgs e) => ApplyPlaybackOptions();
-    private void VolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => ApplyPlaybackOptions();
     private void FitChanged(object sender, SelectionChangedEventArgs e)
     {
-        var fit = FitPicker?.SelectedIndex switch { 1 => Stretch.UniformToFill, 2 => Stretch.Fill, _ => Stretch.Uniform };
-        preview.Fit = fit;
+        fit = FitPicker?.SelectedIndex switch { 1 => Stretch.UniformToFill, 2 => Stretch.Fill, _ => Stretch.Uniform };
+        if (!interfaceReady) return;
+        ApplyFit();
+    }
+    private void ApplyFit()
+    {
+        PreviewMonitor.Picture.Fit = fit;
+        ProgramMonitor.Picture.Fit = fit;
+        CueModePage.SetFit(fit);
         if (output != null) output.Surface.Fit = fit;
     }
-    private void PreviewSized(object sender, SizeChangedEventArgs e) { if (e.WidthChanged && e.NewSize.Width > 0) PreviewFrame.Height = e.NewSize.Width * 9 / 16; }
-    private void PauseLive(object sender, RoutedEventArgs e) => output?.Surface.Pause();
-    private void ResumeLive(object sender, RoutedEventArgs e) => output?.Surface.Resume();
-    private void RestartLive(object sender, RoutedEventArgs e) => output?.Surface.Restart();
-    private void ReloadLive(object sender, RoutedEventArgs e) => output?.Surface.Reload();
-    private void SeekStarted(object sender, MouseButtonEventArgs e) => seeking = true;
-    private void SeekFinished(object sender, MouseButtonEventArgs e) { output?.Surface.Seek((long)SeekBar.Value); seeking = false; }
-    private static string Clock(long time) { var t = TimeSpan.FromMilliseconds(Math.Max(0, time)); return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"mm\:ss"); }
-    private bool snapshotBusy;
-    private async void UpdateLive()
+    private void PatternAnimationChanged(object sender, RoutedEventArgs e)
+    {
+        if (!interfaceReady) return;
+        switcher.AnimatePatterns = PatternMotion.IsChecked == true;
+        QueueSettingsSave();
+    }
+    private void FtbDurationChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!interfaceReady || FtbPicker.SelectedItem is not ComboBoxItem item) return;
+        switcher.FtbMilliseconds = int.Parse((string)item.Tag, CultureInfo.InvariantCulture);
+        QueueSettingsSave();
+    }
+
+    // ---- keyboard ----
+    private void WindowKeyDown(object sender, KeyEventArgs e)
+    {
+        bool control = Keyboard.Modifiers == ModifierKeys.Control;
+        if (e.Key == Key.Enter && control)
+        {
+            e.Handled = true;
+            if (e.IsRepeat) return;
+            if (CueModePage.Visibility == Visibility.Visible) _ = RunNextCue(); else switcher.Auto();
+            return;
+        }
+        if (e.Key == Key.B && control)
+        {
+            e.Handled = true;
+            if (!e.IsRepeat) { BlackMuteButton.IsChecked = BlackMuteButton.IsChecked != true; switcher.SetBlackMute(BlackMuteButton.IsChecked == true); }
+            return;
+        }
+        if (Keyboard.Modifiers != ModifierKeys.None || e.IsRepeat || Keyboard.FocusedElement is TextBox or ComboBox || SettingsPage.Visibility == Visibility.Visible || HelpPage.Visibility == Visibility.Visible) return;
+        bool cues = CueModePage.Visibility == Visibility.Visible;
+        switch (e.Key)
+        {
+            case Key.Space: e.Handled = true; if (cues) _ = RunNextCue(); else switcher.Auto(); break;
+            case Key.Enter when !cues: e.Handled = true; switcher.Cut(); break;
+            case Key.F when !cues: e.Handled = true; switcher.ToggleFtb(); break;
+            case Key.M: e.Handled = true; MuteToggle.IsChecked = MuteToggle.IsChecked != true; break;
+            default:
+                if (!cues && KeyToDigit(e.Key) is int digit)
+                {
+                    e.Handled = true;
+                    var key = digit == 0 ? blackKey : poolKeys.FirstOrDefault(k => k.Number == digit);
+                    if (key != null) _ = SelectPreview(key.Cue);
+                }
+                break;
+        }
+    }
+    private static int? KeyToDigit(Key key) => key >= Key.D0 && key <= Key.D9 ? key - Key.D0 : key >= Key.NumPad0 && key <= Key.NumPad9 ? key - Key.NumPad0 : null;
+
+    private void Housekeeping()
     {
         UpdateClock();
-        SyncInterfaceState();
+        switcher.Tick();
         if (closing || output == null) return;
-        try
-        {
-            if (output.Protected) ApplyProtection();
-            bool video = output.Surface.Current?.Kind == CueKind.Video;
-            SeekBar.IsEnabled = video && output.Surface.Length > 0;
-            if (!seeking)
-            {
-                SeekBar.Maximum = Math.Max(1, output.Surface.Length);
-                SeekBar.Value = Math.Clamp(output.Surface.Time, 0, SeekBar.Maximum);
-            }
-            TimeLabel.Text = video ? Clock(output.Surface.Time) + " / " + Clock(output.Surface.Length) : "00:00 / 00:00";
-            double fps = output.Surface.AnimationFps;
-            RenderRate.Text = !output.BlackedOut && output.Surface.Current?.Kind == CueKind.Pattern && output.Surface.AnimatePatterns && fps > 0 ? $"Animation: {fps:F0} FPS · Ziel 60" : "Ziel: 60 FPS";
-            if (WorkspacePage.Visibility != Visibility.Visible) return;
-            if (!output.IsTransitioning && output.Surface.Current?.Kind is CueKind.Pattern or CueKind.Clock or CueKind.Text or CueKind.Image)
-            {
-                if (output.BlackedOut) LiveVectorHost.Background = Brushes.Black;
-                else if (LiveVectorHost.Background is not VisualBrush source || source.Visual != output.Surface)
-                    LiveVectorHost.Background = new VisualBrush(output.Surface) { Stretch = Stretch.Uniform, AlignmentX = AlignmentX.Center, AlignmentY = AlignmentY.Center };
-                LiveVectorHost.Visibility = Visibility.Visible;
-                LiveImage.Visibility = Visibility.Collapsed;
-                LivePlaceholder.Visibility = Visibility.Collapsed;
-                return;
-            }
-            LiveVectorHost.Visibility = Visibility.Collapsed;
-            LiveImage.Visibility = Visibility.Visible;
-            if (WindowState != WindowState.Minimized && !snapshotBusy)
-            {
-                var target = output;
-                snapshotBusy = true;
-                try
-                {
-                    var image = await OutputSnapshot.CaptureAsync(target, 640);
-                    if (!closing && ReferenceEquals(output, target))
-                    {
-                        LiveImage.Source = image;
-                        LivePlaceholder.Visibility = Visibility.Collapsed;
-                    }
-                }
-                catch (Exception ex) { App.Log(ex); }
-                finally { snapshotBusy = false; }
-            }
-        }
+        try { if (output.Protected) ApplyProtection(); }
         catch (Exception ex) { App.Log(ex); CloseOutput(); Status("Ausgabe aus Sicherheitsgründen freigegeben: " + ex.Message); }
     }
     private void UpdateClock()
     {
         var now = DateTime.Now;
-        ControlClock.Text = ClockView.TimeText(now);
-        ControlDate.Text = now.ToString("ddd, dd. MMM yyyy", CultureInfo.GetCultureInfo("de-DE"));
-    }
-    private void PatternAnimationChanged(object sender, RoutedEventArgs e)
-    {
-        bool enabled = PatternMotion?.IsChecked == true;
-        preview.AnimatePatterns = enabled;
-        if (output != null) output.Surface.AnimatePatterns = enabled;
+        string time = ClockView.TimeText(now);
+        if (ControlClock.Text != time) ControlClock.Text = time;
+        if (InspectorClock.Text != time) InspectorClock.Text = time;
+        string date = now.ToString("dddd, dd. MMMM yyyy", CultureInfo.GetCultureInfo("de-DE"));
+        if (ControlDate.Text != date) ControlDate.Text = date;
     }
 
-    private void AddFiles(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Multiselect = true, Title = "Bilder und Videos hinzufügen", Filter = "Bilder und Videos|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.tif;*.tiff;*.mp4;*.mkv;*.mov;*.avi;*.webm;*.m4v;*.wmv;*.mpeg;*.mpg;*.ts|Alle Dateien|*.*" };
-        if (dialog.ShowDialog(this) == true) Import(dialog.FileNames);
-    }
-    private void FilesDropped(object sender, System.Windows.DragEventArgs e) { if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) Import((string[])e.Data.GetData(System.Windows.DataFormats.FileDrop)); }
-    private void Import(string[] paths)
-    {
-        int added = 0; string? error = null;
-        Cue? last = null;
-        foreach (var path in paths)
-        {
-            try { var cue = Cue.FromFile(path); cues.Add(cue); last = cue; added++; }
-            catch (Exception ex) { error = ex.Message; }
-        }
-        if (added > 0) { dirty = true; RevealInLibrary(last!); }
-        Status(added + " Datei(en) hinzugefügt." + (error == null ? "" : " " + error));
-    }
-    private void RemoveCue(object sender, RoutedEventArgs e) { if (CueList.SelectedItem is Cue cue) { cues.Remove(cue); dirty = true; Status("Aus der Liste entfernt. Die Datei bleibt auf dem Datenträger erhalten."); } }
-    private void PrepareWebsite(object sender, RoutedEventArgs e)
-    {
-        if (!Cue.TryWebsite(UrlInput.Text, out string address)) { Status("Bitte eine gültige HTTP- oder HTTPS-Adresse eingeben."); return; }
-        var cue = new Cue(CueKind.Website, new Uri(address).Host, address);
-        cues.Add(cue); dirty = true; RevealInLibrary(cue);
-    }
-    private void PrepareText(object sender, RoutedEventArgs e)
-    {
-        string text = CueTextInput.Text.Trim();
-        if (text.Length == 0) { Status("Bitte zuerst einen Text eingeben."); return; }
-        var cue = new Cue(CueKind.Text, text.Length > 45 ? text[..45] + "…" : text, text);
-        cues.Add(cue); dirty = true; RevealInLibrary(cue);
-    }
-    private async void PrepareLogo(object sender, RoutedEventArgs e) => await Prepare(new Cue(CueKind.Pattern, "NX-Present Startbild", "logo"));
-    private async void PrepareClock(object sender, RoutedEventArgs e) => await Prepare(new Cue(CueKind.Clock, "Uhr", "local"));
-    private bool SaveCurrentShow(bool choosePath)
-    {
-        string? path = showPath;
-        if (choosePath || path == null)
-        {
-            var dialog = new SaveFileDialog { Title = "NX-Present Show speichern", Filter = "NX-Present Show|*.nxshow", DefaultExt = ".nxshow", FileName = path == null ? "Meine Show.nxshow" : Path.GetFileName(path) };
-            if (dialog.ShowDialog(this) != true) return false;
-            path = dialog.FileName;
-        }
-        try { ShowFile.Save(path, cues); showPath = path; dirty = false; Status("Show gespeichert: " + Path.GetFileName(path) + ". Mediendateien werden verknüpft, nicht eingebettet."); return true; }
-        catch (Exception ex) { App.Log(ex); Status("Speichern fehlgeschlagen: " + ex.Message); return false; }
-    }
-    private void SaveShow(object sender, RoutedEventArgs e) => SaveCurrentShow(true);
-    private bool ConfirmUnsaved()
-    {
-        if (!dirty || loadingShow) return true;
-        var result = MessageBox.Show(this, "Änderungen an der Medienliste speichern?", "NX-Present", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-        return result == MessageBoxResult.No || (result == MessageBoxResult.Yes && SaveCurrentShow(false));
-    }
-    private void OpenShow(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog { Title = "NX-Present Show öffnen", Filter = "NX-Present Show|*.nxshow" };
-        if (dialog.ShowDialog(this) != true) return;
-        try
-        {
-            var list = ShowFile.Load(dialog.FileName);
-            if (!ConfirmUnsaved()) return;
-            loadingShow = true;
-            cues.Clear();
-            foreach (var cue in list) cues.Add(cue);
-            loadingShow = false;
-            showPath = dialog.FileName; dirty = false;
-            if (cues.Count > 0) CueList.SelectedIndex = 0;
-            int missing = list.Count(x => x.Kind is CueKind.Image or CueKind.Video && !File.Exists(x.Source));
-            Status("Show geöffnet." + (missing > 0 ? " Achtung: " + missing + " Mediendatei(en) fehlen." : ""));
-        }
-        catch (Exception ex) { loadingShow = false; App.Log(ex); Status("Show konnte nicht geöffnet werden: " + ex.Message); }
-    }
-    private void ShowHelp(object sender, RoutedEventArgs e) => OpenHelpPage();
-    private async void WindowKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control) { e.Handled = true; await TakeLive(); }
-    }
     private void WindowClosing(object? sender, CancelEventArgs e)
     {
         SaveSettings();
@@ -500,11 +376,15 @@ public partial class MainWindow : Window
         CloseOutput();
         closing = true;
         timer.Stop();
+        CompositionTarget.Rendering -= OnRendering;
         SystemEvents.DisplaySettingsChanged -= DisplaysChanged;
         SystemEvents.SessionSwitch -= SessionChanged;
         Native.UnregisterHotKey(new WindowInteropHelper(this).Handle, EmergencyHotkey);
         hwndSource?.RemoveHook(WindowMessage);
-        preview.Dispose();
-        try { audio?.Dispose(); } catch (Exception ex) { App.Log(ex); MessageBox.Show(this, "Die vorherige Tonauswahl konnte nicht vollständig wiederhergestellt werden. Bitte Windows-Tonausgabe prüfen.", "NX-Present"); }
+        PreviewMonitor.Picture.Detach();
+        ProgramMonitor.Picture.Detach();
+        CueModePage.Detach();
+        switcher.Dispose();
+        try { audio?.Dispose(); } catch (Exception ex) { App.Log(ex); MessageBox.Show(this, "Die vorherige Tonauswahl konnte nicht vollständig wiederhergestellt werden. Bitte die Windows-Tonausgabe prüfen.", "NX-Present"); }
     }
 }
