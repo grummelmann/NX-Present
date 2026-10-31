@@ -22,12 +22,12 @@ public sealed record UpdateCheck(UpdateState State, string Message, UpdateOffer?
 
 /// <summary>
 /// Looks for a newer release on the official GitHub release page, downloads its setup and checks it against the
-/// published SHA256SUMS.txt. Every address must stay on github.com/grummelmann/NX-Present/releases over HTTPS.
+/// published SHA256SUMS.txt. Every address must stay on github.com/nexoGroups/NX-Present/releases over HTTPS.
 /// The checksum comes from the same release, so it detects damaged or incomplete downloads, not a compromised release.
 /// </summary>
 public sealed class Updater : IDisposable
 {
-    public const string Repository = "grummelmann/NX-Present";
+    public const string Repository = "nexoGroups/NX-Present";
     public const string ChecksumAsset = "SHA256SUMS.txt";
     private const long MaxSetupBytes = 1L << 30;
     private const int MaxChecksumBytes = 64 * 1024;

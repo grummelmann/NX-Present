@@ -5,10 +5,10 @@
 **Der Bildmischer für Präsentationen.**
 Vorschau wählen, Programm sehen, mit AUTO überblenden.
 
-[**Installer herunterladen**](https://github.com/grummelmann/NX-Present/releases/latest) ·
+[**Installer herunterladen**](https://github.com/nexoGroups/NX-Present/releases/latest) ·
 [Bedienung](docs/BEDIENUNG.md) ·
 [Änderungen](CHANGELOG.md) ·
-[Fehler melden](https://github.com/grummelmann/NX-Present/issues)
+[Fehler melden](https://github.com/nexoGroups/NX-Present/issues)
 
 ![NX-Present: Vorschau- und Programm-Monitor, Übergangsfeld mit CUT, AUTO und Überblender, Tasten-Reihen für Programm und Vorschau, Medienpool](docs/images/mixer.png)
 
@@ -87,7 +87,7 @@ NX-Present sucht beim Start im Hintergrund auf der offiziellen GitHub-Veröffent
 
 ## Installieren
 
-1. Öffne die [Veröffentlichungen](https://github.com/grummelmann/NX-Present/releases/latest).
+1. Öffne die [Veröffentlichungen](https://github.com/nexoGroups/NX-Present/releases/latest).
 2. Lade das Setup herunter (**NX-Present-Setup-…-x64.exe**). Der von GitHub automatisch angebotene Download **Source code** ist der Quellcode, kein fertiges Programm.
 3. Starte das Setup und akzeptiere die Nutzungsbedingungen, wenn du sie einhalten möchtest.
 4. Öffne NX-Present über das Startmenü oder die Desktop-Verknüpfung.
@@ -98,7 +98,7 @@ Das Setup installiert für dein Windows-Benutzerkonto. Eine eigene Installation 
 
 **System:** Windows 11, 64 Bit, Intel/AMD. Windows 10 ab 22H2 lässt der Installer zu, es wurde aber nicht gesondert geprüft. Für die Beamer-Ausgabe brauchst du zwei getrennte Anzeigen im Windows-Modus **Erweitern**. ARM64, macOS und Linux werden nicht angeboten.
 
-**Signatur:** Die Veröffentlichungen sind **nicht mit einem eigenen Code-Signing-Zertifikat signiert**. Windows kann deshalb einen unbekannten Herausgeber anzeigen. Auf PCs mit aktivierter **Smart App Control** oder strengen Richtlinien kann der Start unsignierter Programme blockiert werden, auch bei selbst gebauten. NX-Present fordert dich nicht auf, Windows-Schutzfunktionen abzuschalten. Die SHA-256-Prüfsumme im Release hilft, die heruntergeladene Datei mit der veröffentlichten zu vergleichen; sie ersetzt keine Signatur. Die Update-Funktion prüft jedes geladene Setup genauso gegen die `SHA256SUMS.txt` derselben Veröffentlichung und lädt nur von `github.com/grummelmann/NX-Present/releases`. Das erkennt beschädigte oder unvollständige Downloads, aber keine manipulierte Veröffentlichung. Blockiert Windows ein Update-Setup, meldet NX-Present das und lässt die Datei im Ordner `%LOCALAPPDATA%\NX-Present\Updates` liegen.
+**Signatur:** Die Veröffentlichungen sind **nicht mit einem eigenen Code-Signing-Zertifikat signiert**. Windows kann deshalb einen unbekannten Herausgeber anzeigen. Auf PCs mit aktivierter **Smart App Control** oder strengen Richtlinien kann der Start unsignierter Programme blockiert werden, auch bei selbst gebauten. NX-Present fordert dich nicht auf, Windows-Schutzfunktionen abzuschalten. Die SHA-256-Prüfsumme im Release hilft, die heruntergeladene Datei mit der veröffentlichten zu vergleichen; sie ersetzt keine Signatur. Die Update-Funktion prüft jedes geladene Setup genauso gegen die `SHA256SUMS.txt` derselben Veröffentlichung und lädt nur von `github.com/nexoGroups/NX-Present/releases`. Das erkennt beschädigte oder unvollständige Downloads, aber keine manipulierte Veröffentlichung. Blockiert Windows ein Update-Setup, meldet NX-Present das und lässt die Datei im Ordner `%LOCALAPPDATA%\NX-Present\Updates` liegen.
 
 ## In einer Minute startklar
 
@@ -170,7 +170,7 @@ Der Quellcode ist öffentlich einsehbar. NX-Present ist **kein unter einer freie
 
 - Der offizielle Download und die nichtkommerzielle Nutzung sind kostenlos.
 - Kommerzielle Nutzung, Verkauf, eigene Download-Mirrors und die Weitergabe der Programmdateien sind ohne gesonderte Zustimmung nicht erlaubt.
-- Verlinke auf die offizielle [Releases-Seite](https://github.com/grummelmann/NX-Present/releases/latest), statt Dateien neu hochzuladen.
+- Verlinke auf die offizielle [Releases-Seite](https://github.com/nexoGroups/NX-Present/releases/latest), statt Dateien neu hochzuladen.
 - Plattforminterne GitHub-Forks sind im Rahmen der GitHub-Bedingungen ausdrücklich ausgenommen. Ein Fork ist keine Erlaubnis, eigene Programm-Downloads anzubieten oder NX-Present kommerziell zu nutzen.
 - Die Bibliotheken anderer Projekte behalten ihre eigenen Lizenzen. Deren Rechte werden durch die Projektlizenz nicht eingeschränkt.
 
@@ -178,4 +178,4 @@ Maßgeblich ist [LICENSE.txt](LICENSE.txt). Fremdkomponenten und ihre Quellen si
 
 ## Rückmeldungen
 
-Melde Fehler unter [Issues](https://github.com/grummelmann/NX-Present/issues). Hilfreich sind Windows-Version, NX-Present-Version, Inhaltstyp und eine kurze Beschreibung der Schritte bis zum Fehler. Zugangsdaten, private Showdateien und Browserprofile gehören nicht in öffentliche Berichte. Mehr dazu in [CONTRIBUTING.md](CONTRIBUTING.md).
+Melde Fehler unter [Issues](https://github.com/nexoGroups/NX-Present/issues). Hilfreich sind Windows-Version, NX-Present-Version, Inhaltstyp und eine kurze Beschreibung der Schritte bis zum Fehler. Zugangsdaten, private Showdateien und Browserprofile gehören nicht in öffentliche Berichte. Mehr dazu in [CONTRIBUTING.md](CONTRIBUTING.md).

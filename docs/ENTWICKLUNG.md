@@ -47,6 +47,8 @@ Die Standardvalidierung braucht weder Video-Engine noch Browser und umfasst:
 
 Mit `--media` (oder `Build.ps1 -Media`) kommen die Prüfungen mit der echten Video-Engine und der WebView2-Laufzeit hinzu: ein selbst erzeugtes Testvideo (Bildfarben, Cue, Wiedergabe, Pause, Suchen, Schleife, erneutes Bereitstellen, Freigabe, defekte Datei), eine lokale animierte Webseite (Bilder, Bewegung, Freigabe des Browserfensters, nicht erreichbare Adresse) und ein Mischer mit echten Quellen. `--video <Dateipfad>` ergänzt einen Test mit einer eigenen Videodatei. `--media-only` führt nur die Mischer- und Medienprüfungen aus.
 
+`--live-updates` fragt zusätzlich die echte Veröffentlichungsseite des Projekts ab (nur die Release-Auskunft, es wird nichts geladen) und prüft, dass `Updater` deren Setup und Prüfsummenliste als vertrauenswürdig erkennt. Ändert sich der Besitzer oder Name des Repositorys, muss `Updater.Repository` mitgezogen werden; die alte Adresse wird bewusst nicht weiter akzeptiert, weil ein frei gewordener Name von jemand anderem belegt werden könnte.
+
 Der zusätzliche Parameter `--audio` ist ein bewusster Integrationstest, der Windows-Standardgeräte umstellt und wiederherstellt; er darf nicht parallel zu einer laufenden NX-Present-Sitzung ausgeführt werden.
 
 ## Aufbau
@@ -86,11 +88,11 @@ Jede Quelle ist ein `SourceFeed`. Alle Monitore und das Ausgabefenster bauen mit
 
 ### Updates
 
-`Updater` fragt `https://api.github.com/repos/grummelmann/NX-Present/releases/latest` ab (ohne Anmeldung, höchstens 60 Anfragen je Stunde und Adresse) und bietet eine Veröffentlichung nur an, wenn
+`Updater` fragt `https://api.github.com/repos/nexoGroups/NX-Present/releases/latest` ab (ohne Anmeldung, höchstens 60 Anfragen je Stunde und Adresse) und bietet eine Veröffentlichung nur an, wenn
 
 - sie weder Entwurf noch Vorabversion ist und ihr Tag `vX.Y.Z` (oder `X.Y.Z`) lautet, ohne Zusatz wie `-beta`,
 - die Version größer ist als die laufende (`Updater.CurrentVersion`, aus `<Version>` in der `.csproj`),
-- sie genau die Dateien `NX-Present-Setup-X.Y.Z-x64.exe` und `SHA256SUMS.txt` enthält und beide Adressen mit `https://github.com/grummelmann/NX-Present/releases/` beginnen.
+- sie genau die Dateien `NX-Present-Setup-X.Y.Z-x64.exe` und `SHA256SUMS.txt` enthält und beide Adressen mit `https://github.com/nexoGroups/NX-Present/releases/` beginnen.
 
 Der Download geht in `%LOCALAPPDATA%\NX-Present\Updates\<name>.part`, wird auf Größe und SHA-256 laut `SHA256SUMS.txt` geprüft und erst dann umbenannt. Die Prüfsumme stammt aus derselben Veröffentlichung; sie erkennt beschädigte Downloads, keine manipulierte Veröffentlichung. Ein Austausch gegen ein signiertes Setup (Authenticode-Prüfung vor dem Start) ist der nächste Schritt, sobald ein Zertifikat vorliegt.
 

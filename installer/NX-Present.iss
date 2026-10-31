@@ -9,7 +9,7 @@
  #define ReleaseDir "..\artifacts\release"
 #endif
 #ifndef ProjectUrl
- #define ProjectUrl "https://github.com/grummelmann/NX-Present"
+ #define ProjectUrl "https://github.com/nexoGroups/NX-Present"
 #endif
 
 [Setup]

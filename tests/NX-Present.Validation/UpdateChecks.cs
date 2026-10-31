@@ -9,7 +9,7 @@ using NXPresent;
 /// <summary>The update service against a stand-in for GitHub: no network is used and nothing is installed.</summary>
 static class UpdateChecks
 {
-    private const string Base = "https://github.com/grummelmann/NX-Present/releases/download/";
+    private const string Base = "https://github.com/nexoGroups/NX-Present/releases/download/";
 
     private sealed class FakeGitHub : HttpMessageHandler
     {
@@ -29,7 +29,7 @@ static class UpdateChecks
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellation) => throw new HttpRequestException("Kein Netz");
     }
 
-    private static readonly Uri Api = new("https://api.github.com/repos/grummelmann/NX-Present/releases/latest");
+    private static readonly Uri Api = new("https://api.github.com/repos/nexoGroups/NX-Present/releases/latest");
 
     private static string Release(string tag, bool prerelease, params (string Name, string Url, long Size)[] assets) => JsonSerializer.Serialize(new
     {
@@ -49,7 +49,7 @@ static class UpdateChecks
         catch (Exception ex) { return ex; }
     }
 
-    public static async Task Run(Action<bool, string> check, string folder)
+    public static async Task Run(Action<bool, string> check, string folder, bool live = false)
     {
         // ---- version tags, addresses, checksum lists ----
         check(Updater.TryParseVersion("v0.4.1", out var v) && v == new Version(0, 4, 1), "Update: release tag with v is read");
@@ -59,18 +59,19 @@ static class UpdateChecks
         check(Updater.Normalize(new Version(0, 4)) == new Version(0, 4, 0) && Updater.Normalize(new Version(0, 4, 0, 0)) == new Version(0, 4, 0), "Update: assembly versions compare equal to release tags");
         check(Updater.CurrentVersion.Revision <= 0 && Updater.CurrentVersion.Build >= 0, "Update: running version is a plain major.minor.build");
 
-        foreach (var good in new[] { Base + "v0.4.1/NX-Present-Setup-0.4.1-x64.exe", "https://GitHub.com/GRUMMELMANN/nx-present/releases/tag/v0.4.1" })
+        foreach (var good in new[] { Base + "v0.4.1/NX-Present-Setup-0.4.1-x64.exe", "https://GitHub.com/NEXOGROUPS/nx-present/releases/tag/v0.4.1" })
             check(Updater.IsTrustedUrl(new Uri(good)), "Update: official release address accepted " + good);
         foreach (var evil in new[]
         {
-            "http://github.com/grummelmann/NX-Present/releases/download/v0.4.1/a.exe",
-            "https://github.com.evil.example/grummelmann/NX-Present/releases/download/v0.4.1/a.exe",
-            "https://evil.example/grummelmann/NX-Present/releases/download/v0.4.1/a.exe",
+            "http://github.com/nexoGroups/NX-Present/releases/download/v0.4.1/a.exe",
+            "https://github.com.evil.example/nexoGroups/NX-Present/releases/download/v0.4.1/a.exe",
+            "https://evil.example/nexoGroups/NX-Present/releases/download/v0.4.1/a.exe",
             "https://github.com/someone-else/NX-Present/releases/download/v0.4.1/a.exe",
-            "https://github.com/grummelmann/NX-Present/issues/1",
-            "https://github.com/grummelmann/NX-Present-Fork/releases/download/v0.4.1/a.exe",
-            "https://user:secret@github.com/grummelmann/NX-Present/releases/download/v0.4.1/a.exe",
-            "https://github.com:8443/grummelmann/NX-Present/releases/download/v0.4.1/a.exe"
+            "https://github.com/grummelmann/NX-Present/releases/download/v0.4.1/a.exe",
+            "https://github.com/nexoGroups/NX-Present/issues/1",
+            "https://github.com/nexoGroups/NX-Present-Fork/releases/download/v0.4.1/a.exe",
+            "https://user:secret@github.com/nexoGroups/NX-Present/releases/download/v0.4.1/a.exe",
+            "https://github.com:8443/nexoGroups/NX-Present/releases/download/v0.4.1/a.exe"
         })
             check(!Updater.IsTrustedUrl(new Uri(evil)), "Update: foreign or unsafe address refused " + evil);
         check(!Updater.IsTrustedUrl(null), "Update: missing address refused");
@@ -92,7 +93,7 @@ static class UpdateChecks
             fake.Routes[Api.AbsoluteUri] = () => Json(complete);
             var found = await updater.CheckAsync(current);
             check(found.State == UpdateState.Available && found.Offer is { } o && o.Version == new Version(0, 4, 1) && o.SetupName == setup && o.SetupSize == payload.Length && o.SetupUrl.AbsoluteUri == setupUrl && o.ChecksumUrl.AbsoluteUri == sumsUrl, "Update: newer release with setup and checksum is offered");
-            check(found.Offer!.ReleasePage.AbsoluteUri == "https://github.com/grummelmann/NX-Present/releases/tag/v0.4.1" && Updater.IsTrustedUrl(found.Offer.ReleasePage), "Update: release notes page is built from the tag");
+            check(found.Offer!.ReleasePage.AbsoluteUri == "https://github.com/nexoGroups/NX-Present/releases/tag/v0.4.1" && Updater.IsTrustedUrl(found.Offer.ReleasePage), "Update: release notes page is built from the tag");
             check(fake.Requests.Count == 1 && fake.Requests.All(x => x == Api.AbsoluteUri), "Update: looking for an update only asks the release API");
 
             fake.Routes[Api.AbsoluteUri] = () => Json(Release("v0.4.0", false));
@@ -190,6 +191,18 @@ static class UpdateChecks
             using var missing = new Updater(download, Api, Path.Combine(folder, "updates-never-created"));
             missing.CleanUp();
             check(true, "Update: clean-up without an update folder does nothing");
+        }
+
+        // ---- the real release page (only with --live-updates; asks GitHub, downloads nothing) ----
+        if (live)
+        {
+            using var real = new Updater(null, null, Path.Combine(folder, "updates-live"));
+            var older = await real.CheckAsync(new Version(0, 0, 1));
+            check(older.State == UpdateState.Available && older.Offer is { } published && published.SetupName == Updater.SetupFileName(published.Version) && Updater.IsTrustedUrl(published.SetupUrl) && Updater.IsTrustedUrl(published.ChecksumUrl) && published.SetupSize > 1_000_000,
+                "Update (live): the project's release page offers a setup and a checksum list: " + older.Message);
+            Console.WriteLine("LIVE " + older.Offer?.SetupUrl);
+            var newest = await real.CheckAsync(new Version(99, 0, 0));
+            check(newest.State == UpdateState.UpToDate, "Update (live): nothing newer than the newest release is offered");
         }
 
         // ---- settings ----
